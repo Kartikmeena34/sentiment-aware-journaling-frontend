@@ -1,28 +1,81 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  ActivityIndicator,
+} from "react-native";
 import api from "../service/api";
+
+import { colors } from "../theme/colors";
+import { spacing, radius, elevation } from "../theme/tokens";
 import { typography } from "../theme/typography";
 
 export default function HistoryScreen() {
   const [entries, setEntries] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchHistory();
   }, []);
 
   const fetchHistory = async () => {
-    const res = await api.get("/api/journal/history/");
-    setEntries(res.data);
+    try {
+      const res = await api.get("/api/journal/history/");
+      setEntries(res.data);
+    } catch (error) {
+      console.log(
+        "Failed to fetch history:",
+        error.response?.data || error.message
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <View style={styles.center}>
+        <Text style={[typography.body, styles.emptyText]}>
+          No entries yet.
+        </Text>
+      </View>
+    );
+  }
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={typography.title}>History</Text>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+    >
+      <Text style={[typography.title, styles.title]}>
+        History
+      </Text>
 
       {entries.map((item) => (
         <View key={item.id} style={styles.card}>
-          <Text style={typography.subtitle}>{item.dominant_emotion}</Text>
-          <Text>{item.text.slice(0, 80)}...</Text>
+          <Text style={[typography.section, styles.emotion]}>
+            {item.dominant_emotion
+              ? item.dominant_emotion.charAt(0).toUpperCase() +
+                item.dominant_emotion.slice(1)
+              : "Unknown"}
+          </Text>
+
+          <Text
+            style={[typography.body, styles.preview]}
+            numberOfLines={3}
+          >
+            {item.text}
+          </Text>
         </View>
       ))}
     </ScrollView>
@@ -30,6 +83,39 @@ export default function HistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 24 },
-  card: { backgroundColor: "#fff", padding: 20, borderRadius: 16, marginTop: 15 },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  content: {
+    padding: spacing.lg,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.background,
+  },
+  title: {
+    color: colors.textPrimary,
+    marginBottom: spacing.lg,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    ...elevation.card,
+  },
+  emotion: {
+    color: colors.primary,
+    marginBottom: spacing.sm,
+  },
+  preview: {
+    color: colors.textSecondary,
+    lineHeight: 22,
+  },
+  emptyText: {
+    color: colors.textSecondary,
+  },
 });

@@ -20,7 +20,12 @@ export const AuthProvider = ({ children }) => {
   const login = async (access, refresh) => {
     await AsyncStorage.setItem("accessToken", access);
     await AsyncStorage.setItem("refreshToken", refresh);
-    setIsAuthenticated(true);
+
+    const verify = await AsyncStorage.getItem("accessToken");
+
+    if (verify) {
+      setIsAuthenticated(true);
+    }
   };
 
   const logout = async () => {

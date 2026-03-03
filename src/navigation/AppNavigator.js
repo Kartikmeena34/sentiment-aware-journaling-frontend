@@ -10,7 +10,9 @@ import RegisterScreen from "../screens/RegisterScreen";
 import JournalScreen from "../screens/JournalScreen";
 import TrendScreen from "../screens/TrendScreen";
 import HistoryScreen from "../screens/HistoryScreen";
+import EmotionFeedbackScreen from "../screens/EmotionFeedbackScreen";
 
+console.log("REGISTER SCREEN:", RegisterScreen);
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -49,14 +51,20 @@ export default function AppNavigator() {
 
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      {isAuthenticated ? (
-        <Stack.Screen name="Main" component={MainTabs} />
-      ) : (
-        <>
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen} />
-        </>
-      )}
-    </Stack.Navigator>
+  {isAuthenticated ? (
+    <>
+      <Stack.Screen name="Main" component={MainTabs} />
+      <Stack.Screen
+        name="EmotionFeedback"
+        component={EmotionFeedbackScreen}
+      />
+    </>
+  ) : (
+    <>
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Register" component={RegisterScreen} />
+    </>
+  )}
+</Stack.Navigator>
   );
 }

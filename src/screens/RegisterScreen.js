@@ -1,44 +1,150 @@
 import React, { useState, useContext } from "react";
-import { View, Text, TextInput, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  Alert,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
 import { AuthContext } from "../context/AuthContext";
-import PrimaryButton from "../components/PrimaryButton";
+
+import { colors } from "../theme/colors";
+import { spacing, radius, elevation } from "../theme/tokens";
 import { typography } from "../theme/typography";
 
-const BASE_URL = "http://192.168.1.2:8000";
+const BASE_URL = "http://192.168.1.5:8000";
 
-export default function RegisterScreen() {
+export default function RegisterScreen({ navigation }) {
   const { login } = useContext(AuthContext);
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    const response = await fetch(`${BASE_URL}/api/auth/register/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
+    if (!username || !password) return;
 
-    const data = await response.json();
+    setLoading(true);
 
-    if (response.ok) {
+    try {
+      const response = await fetch(`${BASE_URL}/api/auth/register/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+      // console.log("Response status:", response.status); useful for debugging
+      // console.log("Response data:", data);
+      if (!response.ok) {
+        Alert.alert("Registration Failed", data.detail || "Unable to register.");
+        setLoading(false);
+        return;
+      }
+
       await login(data.access, data.refresh);
+
+      // AuthContext will switch stack automatically
+
+    } catch (error) {
+    // console.log("Full error:", error); useful for debugging
+    Alert.alert("Error", error.message || "Unable to connect to server.");
+    setLoading(false);
     }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={typography.title}>Create Account</Text>
+      <View>
+        <Text style={[typography.title, styles.title]}>
+          Create Account
+        </Text>
 
-      <TextInput style={styles.input} placeholder="Username" onChangeText={setUsername} />
-      <TextInput style={styles.input} placeholder="Password" secureTextEntry onChangeText={setPassword} />
+        <TextInput
+          style={styles.input}
+          placeholder="Username"
+          placeholderTextColor={colors.textMuted}
+          autoCapitalize="none"
+          value={username}
+          onChangeText={setUsername}
+        />
 
-      <PrimaryButton title="Register" onPress={handleRegister} />
+        <TextInput
+          style={styles.input}
+          placeholder="Password"
+          placeholderTextColor={colors.textMuted}
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+        />
+
+        <TouchableOpacity
+          style={[
+            styles.button,
+            (!username || !password || loading) && styles.disabled,
+          ]}
+          onPress={handleRegister}
+          disabled={!username || !password || loading}
+          activeOpacity={0.85}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Register</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <TouchableOpacity
+        onPress={() => navigation.navigate("Login")}
+        activeOpacity={0.7}
+      >
+        <Text style={[typography.caption, styles.link]}>
+          Already have an account?
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 24 },
-  input: { backgroundColor: "#fff", padding: 14, borderRadius: 12, marginTop: 15 },
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+    padding: spacing.lg,
+    justifyContent: "space-between",
+  },
+  title: {
+    color: colors.textPrimary,
+    marginBottom: spacing.xl,
+  },
+  input: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    color: colors.textPrimary,
+    ...elevation.card,
+  },
+  button: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+  buttonText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: typography.body.fontSize,
+  },
+  link: {
+    color: colors.textSecondary,
+    textAlign: "center",
+  },
 });
