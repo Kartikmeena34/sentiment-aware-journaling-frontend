@@ -1,7 +1,8 @@
+// api.js
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const BASE_URL = "http://192.168.1.5:8000"; // Change if needed
+const BASE_URL = "https://sentiment-aware-journaling-backend.onrender.com"; // Change if needed
 
 const api = axios.create({
   baseURL: BASE_URL,

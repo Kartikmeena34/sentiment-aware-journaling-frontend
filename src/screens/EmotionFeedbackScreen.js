@@ -1,54 +1,121 @@
-import React from "react";
+// EmotionFeedbackScreen.js - POLISHED VERSION
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Animated,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { colors } from "../theme/colors";
 import { spacing, radius, elevation } from "../theme/tokens";
 import { typography } from "../theme/typography";
 
 export default function EmotionFeedbackScreen({ route, navigation }) {
-  const { dominant_emotion, confidence, insight, analytics } = route.params;
+  const { contextual_message, has_insights } = route.params;
 
-  const confidencePercent = Math.round(confidence * 100);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Staggered animation sequence
+    Animated.sequence([
+      // Icon scale
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      // Card fade and slide
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, []);
 
   return (
     <View style={styles.container}>
-      
-      <View style={styles.card}>
-        <Text style={[typography.section, styles.label]}>
-          Reflection
-        </Text>
+      <View style={styles.content}>
+        {/* Success Icon */}
+        <Animated.View 
+          style={[
+            styles.iconContainer,
+            {
+              transform: [{ scale: scaleAnim }]
+            }
+          ]}
+        >
+          <View style={styles.iconCircle}>
+            <Ionicons name="checkmark-circle" size={64} color={colors.primary} />
+          </View>
+        </Animated.View>
 
-        <Text style={[typography.title, styles.emotion]}>
-          {dominant_emotion.charAt(0).toUpperCase() +
-            dominant_emotion.slice(1)}
-        </Text>
+        {/* Card with message */}
+        <Animated.View 
+          style={[
+            styles.card,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          <Text style={[typography.title, styles.confirmation]}>
+            Entry Saved
+          </Text>
 
-        <Text style={[typography.caption, styles.confidence]}>
-          Confidence {confidencePercent}%
-        </Text>
+          {contextual_message && (
+            <View style={styles.contextualContainer}>
+              <Ionicons name="information-circle-outline" size={20} color={colors.primary} />
+              <Text style={[typography.body, styles.contextual]}>
+                {contextual_message}
+              </Text>
+            </View>
+          )}
 
-        <Text style={[typography.body, styles.insight]}>
-          {insight}
-        </Text>
+          <View style={styles.divider} />
+
+          {has_insights ? (
+            <View style={styles.hintContainer}>
+              <Ionicons name="bulb-outline" size={18} color={colors.textSecondary} />
+              <Text style={[typography.caption, styles.hint]}>
+                Check your Insights tab to discover patterns
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.hintContainer}>
+              <Ionicons name="hourglass-outline" size={18} color={colors.textSecondary} />
+              <Text style={[typography.caption, styles.hint]}>
+                Keep journaling to unlock insights
+              </Text>
+            </View>
+          )}
+        </Animated.View>
       </View>
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={() =>
-          navigation.navigate("Main", {
-            screen: "Trends",
-            params: { analytics },
-          })
-        }
-        activeOpacity={0.85}
-      >
-        <Text style={styles.buttonText}>View Insights</Text>
-      </TouchableOpacity>
+      {/* Action Button */}
+      <Animated.View style={{ opacity: fadeAnim }}>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => navigation.navigate("Main", { screen: "Journal" })}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.buttonText}>Done</Text>
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 }
@@ -60,34 +127,70 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     justifyContent: "space-between",
   },
+  content: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  iconContainer: {
+    marginBottom: spacing.xl,
+  },
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.surface,
+    justifyContent: "center",
+    alignItems: "center",
+    ...elevation.card,
+  },
   card: {
-    marginTop: spacing.xl,
+    width: "100%",
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     padding: spacing.xl,
     ...elevation.card,
   },
-  label: {
-    color: colors.textSecondary,
+  confirmation: {
+    color: colors.textPrimary,
+    marginBottom: spacing.lg,
+    textAlign: "center",
+  },
+  contextualContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: colors.background,
+    padding: spacing.md,
+    borderRadius: radius.md,
     marginBottom: spacing.md,
   },
-  emotion: {
-    color: colors.textPrimary,
-    marginBottom: spacing.sm,
-  },
-  confidence: {
-    color: colors.textMuted,
-    marginBottom: spacing.lg,
-  },
-  insight: {
+  contextual: {
     color: colors.textSecondary,
-    lineHeight: 22,
+    lineHeight: 20,
+    flex: 1,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.md,
+  },
+  hintContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    justifyContent: "center",
+  },
+  hint: {
+    color: colors.textSecondary,
+    textAlign: "center",
   },
   button: {
     backgroundColor: colors.primary,
     paddingVertical: spacing.md,
     borderRadius: radius.md,
     alignItems: "center",
+    ...elevation.button,
   },
   buttonText: {
     color: "#fff",

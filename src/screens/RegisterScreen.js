@@ -1,3 +1,4 @@
+// RegisterScreen.js - Allows new users to create an account by entering a username and password. It includes input validation, error handling for registration failures, and a link to navigate back to the LoginScreen for existing users. Upon successful registration, it automatically logs the user in and navigates to the main app screens.
 import React, { useState, useContext } from "react";
 import {
   View,
@@ -14,7 +15,7 @@ import { colors } from "../theme/colors";
 import { spacing, radius, elevation } from "../theme/tokens";
 import { typography } from "../theme/typography";
 
-const BASE_URL = "http://192.168.1.5:8000";
+const BASE_URL = "https://sentiment-aware-journaling-backend.onrender.com";
 
 export default function RegisterScreen({ navigation }) {
   const { login } = useContext(AuthContext);

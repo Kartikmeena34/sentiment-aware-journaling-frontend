@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useContext, useRef } from "react";
+// TrendScreen.js - WITH ERROR HANDLING
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -8,9 +9,10 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
+  RefreshControl,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import api from "../service/api";
-import { AuthContext } from "../context/AuthContext";
 import { useRoute } from "@react-navigation/native";
 
 import { colors } from "../theme/colors";
@@ -18,84 +20,170 @@ import { spacing, radius, elevation } from "../theme/tokens";
 import { typography } from "../theme/typography";
 
 const TrendScreen = () => {
-  const { logout } = useContext(AuthContext);
   const route = useRoute();
 
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
   const animatedValuesRef = useRef([]);
 
   const passedAnalytics = route.params?.analytics;
 
-  // Load analytics
+  // Animation function
+  const runAnimation = (distribution) => {
+    const entries = Object.entries(distribution)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    animatedValuesRef.current = entries.map(
+      () => new Animated.Value(0)
+    );
+
+    const animations = entries.map(([_, value], index) =>
+      Animated.timing(animatedValuesRef.current[index], {
+        toValue: Math.max(value * 100, 4),
+        duration: 800,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      })
+    );
+
+    Animated.stagger(80, animations).start();
+  };
+
+  // Load data
   useEffect(() => {
     initializeScreen();
   }, [passedAnalytics]);
 
   const initializeScreen = async () => {
     try {
+      setError(null);
+      let data;
+
       if (passedAnalytics) {
-        setAnalytics(passedAnalytics);
+        data = passedAnalytics;
       } else {
         const response = await api.get("/api/journal/analytics/");
-        setAnalytics(response.data);
+        data = response.data;
+      }
+
+      setAnalytics(data);
+
+      if (data?.weekly_distribution) {
+        runAnimation(data.weekly_distribution);
       }
     } catch (error) {
       console.log(
         "Failed to load analytics:",
         error.response?.data || error.message
       );
+      
+      if (error.message === "Network Error" || !error.response) {
+        setError("network");
+      } else if (error.response?.status >= 500) {
+        setError("server");
+      } else {
+        setError("unknown");
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // Animate bars when distribution updates
-  useEffect(() => {
-    if (!analytics?.weekly_distribution) return;
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      setError(null);
+      const response = await api.get("/api/journal/analytics/");
+      const data = response.data;
 
-    const entries = Object.entries(analytics.weekly_distribution);
+      setAnalytics(data);
 
-    animatedValuesRef.current = entries.map(
-      (_, index) =>
-        animatedValuesRef.current[index] || new Animated.Value(0)
-    );
-
-    const animations = entries.map(([, value], index) =>
-      Animated.timing(animatedValuesRef.current[index], {
-        toValue: value,
-        duration: 700,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      })
-    );
-
-    Animated.stagger(60, animations).start();
-  }, [analytics?.weekly_distribution]);
-
-  const handleLogout = async () => {
-    await logout();
+      if (data?.weekly_distribution) {
+        runAnimation(data.weekly_distribution);
+      }
+    } catch (error) {
+      console.log(
+        "Refresh failed:",
+        error.response?.data || error.message
+      );
+      
+      if (error.message === "Network Error" || !error.response) {
+        setError("network");
+      } else if (error.response?.status >= 500) {
+        setError("server");
+      } else {
+        setError("unknown");
+      }
+    } finally {
+      setRefreshing(false);
+    }
   };
 
+  const handleRetry = () => {
+    setLoading(true);
+    initializeScreen();
+  };
+
+  const getEntropyLabel = (entropy) => {
+    if (entropy >= 2) return "Your emotions are varied this week";
+    if (entropy >= 1) return "Varied emotional mix";
+    return "Focused emotional pattern";
+  };
+
+  // Loading state
   if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={[typography.caption, styles.loadingText]}>
+          Analyzing your patterns...
+        </Text>
       </View>
     );
   }
 
+  // Error state
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Ionicons 
+          name={error === "network" ? "cloud-offline-outline" : "alert-circle-outline"} 
+          size={64} 
+          color={colors.textMuted} 
+        />
+        <Text style={[typography.section, styles.errorTitle]}>
+          {error === "network" && "No Internet Connection"}
+          {error === "server" && "Server Error"}
+          {error === "unknown" && "Something Went Wrong"}
+        </Text>
+        <Text style={[typography.body, styles.errorMessage]}>
+          {error === "network" && "Check your connection and try again"}
+          {error === "server" && "Our servers are having issues. Try again in a moment"}
+          {error === "unknown" && "We couldn't load your trends"}
+        </Text>
+        <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+          <Ionicons name="refresh-outline" size={20} color="#fff" />
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Empty state (not enough data)
   if (!analytics?.data_sufficiency) {
     return (
       <View style={styles.center}>
-        <Text style={[typography.body, styles.placeholder]}>
-          Keep journaling to see clearer emotional patterns.
+        <Ionicons name="analytics-outline" size={64} color={colors.textMuted} />
+        <Text style={[typography.section, styles.emptyTitle]}>
+          Not Enough Data Yet
         </Text>
-
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        <Text style={[typography.body, styles.emptyMessage]}>
+          Keep journaling to see clearer emotional patterns. We need at least 3 entries from this week.
+        </Text>
       </View>
     );
   }
@@ -107,16 +195,22 @@ const TrendScreen = () => {
     emotional_entropy,
   } = analytics;
 
-  const getEntropyLabel = (entropy) => {
-    if (entropy >= 2) return "Broad emotional range";
-    if (entropy >= 1) return "Varied emotional mix";
-    return "Focused emotional pattern";
-  };
+  const topEmotions = Object.entries(weekly_distribution)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5);
 
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+        />
+      }
     >
       {weekly_confidence < 0.5 && (
         <Text style={[typography.caption, styles.subtleNote]}>
@@ -140,36 +234,34 @@ const TrendScreen = () => {
           Weekly Distribution
         </Text>
 
-        {Object.entries(weekly_distribution).map(
-          ([emotion, value], index) => (
-            <View key={emotion} style={styles.barWrapper}>
-              <View style={styles.barHeader}>
-                <Text style={[typography.body, styles.emotionText]}>
-                  {emotion.charAt(0).toUpperCase() + emotion.slice(1)}
-                </Text>
-                <Text style={[typography.caption, styles.percentText]}>
-                  {(value * 100).toFixed(0)}%
-                </Text>
-              </View>
-
-              <View style={styles.barBackground}>
-                <Animated.View
-                  style={[
-                    styles.barFill,
-                    {
-                      width: animatedValuesRef.current[index]
-                        ? animatedValuesRef.current[index].interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ["0%", `${value * 100}%`],
-                          })
-                        : "0%",
-                    },
-                  ]}
-                />
-              </View>
+        {topEmotions.map(([emotion, value], index) => (
+          <View key={emotion} style={styles.barWrapper}>
+            <View style={styles.barHeader}>
+              <Text style={[typography.body, styles.emotionText]}>
+                {(emotion || "unknown").charAt(0).toUpperCase() + (emotion || "unknown").slice(1)}
+              </Text>
+              <Text style={[typography.caption, styles.percentText]}>
+                {(value * 100).toFixed(0)}%
+              </Text>
             </View>
-          )
-        )}
+
+            <View style={styles.barBackground}>
+              <Animated.View
+                style={[
+                  styles.barFill,
+                  {
+                    width: animatedValuesRef.current[index]
+                      ? animatedValuesRef.current[index].interpolate({
+                          inputRange: [0, 100],
+                          outputRange: ["0%", "100%"],
+                        })
+                      : "0%",
+                  },
+                ]}
+              />
+            </View>
+          </View>
+        ))}
       </View>
 
       {/* Trends */}
@@ -182,7 +274,7 @@ const TrendScreen = () => {
           {Object.entries(trends).map(([emotion, direction]) => (
             <View key={emotion} style={styles.trendRow}>
               <Text style={[typography.body, styles.emotionText]}>
-                {emotion.charAt(0).toUpperCase() + emotion.slice(1)}
+                {(emotion || "unknown").charAt(0).toUpperCase() + (emotion || "unknown").slice(1)}
               </Text>
               <Text style={styles.trendIcon}>
                 {direction === "increasing" ? "↑" : "↓"}
@@ -191,17 +283,61 @@ const TrendScreen = () => {
           ))}
         </View>
       )}
-
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-        <Text style={styles.logoutText}>Logout</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 };
 
 export default TrendScreen;
 
+// Add these new styles to your existing styles object:
 const styles = StyleSheet.create({
+  // ... keep all your existing styles ...
+  
+  // Add these new ones:
+  loadingText: {
+    color: colors.textSecondary,
+    marginTop: spacing.md,
+  },
+  errorTitle: {
+    color: colors.textPrimary,
+    marginTop: spacing.lg,
+    textAlign: "center",
+  },
+  errorMessage: {
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    textAlign: "center",
+    paddingHorizontal: spacing.xl,
+  },
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.xl,
+    borderRadius: radius.md,
+    marginTop: spacing.xl,
+  },
+  retryText: {
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: typography.body.fontSize,
+  },
+  emptyTitle: {
+    color: colors.textPrimary,
+    marginTop: spacing.lg,
+    textAlign: "center",
+  },
+  emptyMessage: {
+    color: colors.textSecondary,
+    marginTop: spacing.sm,
+    textAlign: "center",
+    paddingHorizontal: spacing.xl,
+    lineHeight: 22,
+  },
+  
+  // ... keep all other existing styles below ...
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -273,17 +409,6 @@ const styles = StyleSheet.create({
   trendIcon: {
     fontSize: 16,
     color: colors.primary,
-    fontWeight: "600",
-  },
-  logoutButton: {
-    marginTop: spacing.md,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    alignItems: "center",
-    backgroundColor: colors.danger,
-  },
-  logoutText: {
-    color: "#fff",
     fontWeight: "600",
   },
 });

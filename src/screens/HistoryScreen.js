@@ -1,20 +1,27 @@
+// HistoryScreen.js - Displays a list of past journal entries with their creation dates. Each entry is shown as a card with a preview of the text. Users can tap on an entry to view its full details on a separate screen. The screen also includes pull-to-refresh functionality to update the list of entries.
 import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
   StyleSheet,
   ActivityIndicator,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
 import api from "../service/api";
 
 import { colors } from "../theme/colors";
 import { spacing, radius, elevation } from "../theme/tokens";
 import { typography } from "../theme/typography";
 
-export default function HistoryScreen() {
+const HistoryScreen = () => {
+  const navigation = useNavigation();
+
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchHistory();
@@ -22,15 +29,30 @@ export default function HistoryScreen() {
 
   const fetchHistory = async () => {
     try {
-      const res = await api.get("/api/journal/history/");
-      setEntries(res.data);
+      const response = await api.get("/api/journal/history/");
+      setEntries(response.data);
     } catch (error) {
       console.log(
-        "Failed to fetch history:",
+        "Failed to load history:",
         error.response?.data || error.message
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const response = await api.get("/api/journal/history/");
+      setEntries(response.data);
+    } catch (error) {
+      console.log(
+        "Refresh failed:",
+        error.response?.data || error.message
+      );
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -42,32 +64,39 @@ export default function HistoryScreen() {
     );
   }
 
-  if (entries.length === 0) {
+  if (!entries.length) {
     return (
       <View style={styles.center}>
         <Text style={[typography.body, styles.emptyText]}>
-          No entries yet.
+          Your journey begins here.
         </Text>
       </View>
     );
   }
 
   return (
-    <ScrollView
+    <FlatList
       style={styles.container}
       contentContainerStyle={styles.content}
-    >
-      <Text style={[typography.title, styles.title]}>
-        History
-      </Text>
-
-      {entries.map((item) => (
-        <View key={item.id} style={styles.card}>
-          <Text style={[typography.section, styles.emotion]}>
-            {item.dominant_emotion
-              ? item.dominant_emotion.charAt(0).toUpperCase() +
-                item.dominant_emotion.slice(1)
-              : "Unknown"}
+      data={entries}
+      keyExtractor={(item) => item.id.toString()}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[colors.primary]}
+          tintColor={colors.primary}
+        />
+      }
+      renderItem={({ item }) => (
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() =>
+            navigation.navigate("EntryDetail", { entry: item })
+          }
+        >
+          <Text style={[typography.caption, styles.date]}>
+            {new Date(item.created_at).toLocaleDateString()}
           </Text>
 
           <Text
@@ -76,11 +105,13 @@ export default function HistoryScreen() {
           >
             {item.text}
           </Text>
-        </View>
-      ))}
-    </ScrollView>
+        </TouchableOpacity>
+      )}
+    />
   );
-}
+};
+
+export default HistoryScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -89,6 +120,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.lg,
+    paddingTop: spacing.xl,
   },
   center: {
     flex: 1,
@@ -96,9 +128,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: colors.background,
   },
-  title: {
-    color: colors.textPrimary,
-    marginBottom: spacing.lg,
+  emptyText: {
+    color: colors.textSecondary,
+    textAlign: "center",
   },
   card: {
     backgroundColor: colors.surface,
@@ -107,15 +139,11 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     ...elevation.card,
   },
-  emotion: {
-    color: colors.primary,
+  date: {
     marginBottom: spacing.sm,
+    color: colors.textMuted,
   },
   preview: {
-    color: colors.textSecondary,
-    lineHeight: 22,
-  },
-  emptyText: {
-    color: colors.textSecondary,
+    color: colors.textPrimary,
   },
 });

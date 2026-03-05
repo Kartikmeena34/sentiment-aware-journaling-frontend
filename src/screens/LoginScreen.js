@@ -1,3 +1,4 @@
+// LoginScreen.js - The initial screen where users can enter their username and password to log in. It includes input fields for credentials, a login button, and a link to navigate to the RegisterScreen for new users. The screen handles authentication logic and displays error messages for failed login attempts.
 import React, { useState, useContext } from "react";
 import {
   View,
@@ -14,7 +15,7 @@ import { colors } from "../theme/colors";
 import { spacing, radius, elevation } from "../theme/tokens";
 import { typography } from "../theme/typography";
 
-const BASE_URL = "http://192.168.1.5:8000";
+const BASE_URL = "https://sentiment-aware-journaling-backend.onrender.com";
 
 export default function LoginScreen({ navigation }) {
   const { login } = useContext(AuthContext);

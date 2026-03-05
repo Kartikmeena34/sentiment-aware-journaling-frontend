@@ -1,3 +1,4 @@
+// JournalScreen.js - UPDATED
 import React, { useState } from "react";
 import {
   View,
@@ -28,17 +29,16 @@ export default function JournalScreen({ navigation }) {
         text,
       });
 
-      const { dominant_emotion, confidence, insight, analytics } =
-        response.data;
+      // NEW: Backend now returns contextual_message and has_insights
+      const { contextual_message, has_insights } = response.data;
 
       setLoading(false);
       setText("");
 
+      // Navigate with new params
       navigation.navigate("EmotionFeedback", {
-        dominant_emotion,
-        confidence,
-        insight,
-        analytics,
+        contextual_message,
+        has_insights,
       });
 
     } catch (error) {
