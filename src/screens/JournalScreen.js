@@ -1,4 +1,3 @@
-// JournalScreen.js - UPDATED
 import React, { useState } from "react";
 import {
   View,
@@ -7,10 +6,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
 } from "react-native";
 import api from "../service/api";
-
 import { colors } from "../theme/colors";
 import { spacing, radius, elevation } from "../theme/tokens";
 import { typography } from "../theme/typography";
@@ -19,71 +19,70 @@ export default function JournalScreen({ navigation }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async () => {
-    if (!text.trim()) return;
+  const handleSave = async () => {
+    if (!text.trim()) {
+      Alert.alert("Empty Entry", "Please write something before saving");
+      return;
+    }
 
     setLoading(true);
-
     try {
       const response = await api.post("/api/journal/create/", {
-        text,
+        text: text.trim(),
       });
 
-      // NEW: Backend now returns contextual_message and has_insights
       const { contextual_message, has_insights } = response.data;
 
-      setLoading(false);
-      setText("");
-
-      // Navigate with new params
+      setText(""); // Clear input
+      
       navigation.navigate("EmotionFeedback", {
         contextual_message,
         has_insights,
       });
-
     } catch (error) {
-      console.log(
-        "Journal submission failed:",
-        error.response?.data || error.message
-      );
+      Alert.alert("Error", "Failed to save entry. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={styles.container}
-      contentContainerStyle={styles.content}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <Text style={[typography.title, styles.title]}>
-        Write your thoughts
-      </Text>
+      <View style={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Write your thoughts</Text>
+        </View>
 
-      <TextInput
-        style={styles.input}
-        multiline
-        placeholder="How are you feeling today?"
-        placeholderTextColor={colors.textMuted}
-        value={text}
-        onChangeText={setText}
-      />
+        {/* Text Input - Takes up more space */}
+        <TextInput
+          style={styles.textInput}
+          placeholder="How are you feeling today?"
+          placeholderTextColor={colors.textMuted}
+          value={text}
+          onChangeText={setText}
+          multiline
+          textAlignVertical="top"
+        />
 
-      <TouchableOpacity
-        style={[
-          styles.button,
-          (!text.trim() || loading) && styles.disabled,
-        ]}
-        disabled={!text.trim() || loading}
-        onPress={handleSubmit}
-        activeOpacity={0.85}
-      >
-        {loading ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.buttonText}>Save Entry</Text>
-        )}
-      </TouchableOpacity>
-    </ScrollView>
+        {/* Button */}
+        <TouchableOpacity
+          style={[styles.button, loading && styles.buttonDisabled]}
+          disabled={loading}
+          onPress={handleSave}
+          activeOpacity={0.85}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Save Entry</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -93,37 +92,44 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   content: {
-    padding: spacing.lg,
-    paddingTop: spacing.xl,
-    justifyContent: "space-between",
+    flex: 1,
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
+  },
+  header: {
+    marginBottom: spacing.lg,
   },
   title: {
+    ...typography.title,
     color: colors.textPrimary,
-    marginBottom: spacing.lg,
   },
-  input: {
-    minHeight: 180,
+  textInput: {
+    flex: 1, // ← KEY FIX: Takes remaining space
     backgroundColor: colors.surface,
-    borderRadius: radius.lg,
+    borderRadius: radius.md,
     padding: spacing.lg,
-    fontSize: typography.body.fontSize,
+    fontSize: 16,
     color: colors.textPrimary,
-    textAlignVertical: "top",
-    marginBottom: spacing.lg,
+    textAlignVertical: 'top',
     ...elevation.card,
+    marginBottom: spacing.lg,
+    lineHeight: 24,
+    minHeight: 200, // Minimum height
   },
   button: {
     backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
     borderRadius: radius.md,
     alignItems: "center",
+    ...elevation.sm,
   },
-  disabled: {
+  buttonDisabled: {
     opacity: 0.5,
   },
   buttonText: {
     color: "#fff",
     fontWeight: "600",
-    fontSize: typography.body.fontSize,
+    fontSize: 16,
   },
 });

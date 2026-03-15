@@ -1,111 +1,155 @@
-// LoginScreen.js - The initial screen where users can enter their username and password to log in. It includes input fields for credentials, a login button, and a link to navigate to the RegisterScreen for new users. The screen handles authentication logic and displays error messages for failed login attempts.
+// LoginScreen.js - COMPLETE VERSION with better error handling
 import React, { useState, useContext } from "react";
 import {
   View,
   Text,
   TextInput,
   StyleSheet,
-  Alert,
   TouchableOpacity,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
 } from "react-native";
+import api from "../service/api";
 import { AuthContext } from "../context/AuthContext";
 
 import { colors } from "../theme/colors";
 import { spacing, radius, elevation } from "../theme/tokens";
 import { typography } from "../theme/typography";
 
-const BASE_URL = "https://sentiment-aware-journaling-backend.onrender.com";
-
 export default function LoginScreen({ navigation }) {
-  const { login } = useContext(AuthContext);
-
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const { login } = useContext(AuthContext);
+
   const handleLogin = async () => {
-    if (!username || !password) return;
+    // Validation
+    if (!username.trim() || !password.trim()) {
+      Alert.alert("Error", "Please enter both username and password");
+      return;
+    }
 
     setLoading(true);
 
     try {
-      const response = await fetch(`${BASE_URL}/api/auth/login/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+      console.log("=== LOGIN ATTEMPT ===");
+      console.log("Username:", username.trim());
+      
+      const response = await api.post("/api/auth/login/", {
+        username: username.trim(),
+        password: password.trim(),
       });
 
-      const data = await response.json();
+      console.log("✓ Backend response received");
+      console.log("Response data:", JSON.stringify(response.data, null, 2));
 
-      if (!response.ok) {
-        Alert.alert("Login Failed", data.detail || "Invalid credentials");
-        setLoading(false);
-        return;
+      // Extract data from response
+      const { access, refresh, user } = response.data;
+
+      // Validate we got tokens
+      if (!access || !refresh) {
+        console.log("❌ Missing tokens in response");
+        throw new Error("Invalid response from server - missing tokens");
       }
 
-      await login(data.access, data.refresh);
+      console.log("✓ Tokens extracted");
+      console.log("✓ User data:", user ? "Present" : "Not provided");
 
-      // No manual navigation reset needed
-      // AuthContext controls stack switch
+      // Call login from AuthContext
+      await login(access, refresh, user);
 
+      console.log("✓ Login successful - navigation will happen automatically");
+      
     } catch (error) {
-      Alert.alert("Error", "Unable to connect to server.");
+      console.log("=== LOGIN ERROR ===");
+      console.log("Error:", error);
+      
+      let errorMessage = "Login failed. Please try again.";
+      
+      if (error.response) {
+        console.log("Server response:", error.response.data);
+        errorMessage = error.response.data?.message 
+          || error.response.data?.error
+          || "Invalid username or password";
+      } else if (error.request) {
+        console.log("No response from server");
+        errorMessage = "Cannot connect to server. Check your internet connection.";
+      } else {
+        console.log("Error message:", error.message);
+        errorMessage = error.message;
+      }
+      
+      Alert.alert("Login Failed", errorMessage);
+    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      <View>
-        <Text style={[typography.title, styles.title]}>
-          Welcome Back
-        </Text>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <View style={styles.content}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Welcome Back</Text>
+          <Text style={styles.subtitle}>Login to continue journaling</Text>
+        </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Username"
-          placeholderTextColor={colors.textMuted}
-          autoCapitalize="none"
-          value={username}
-          onChangeText={setUsername}
-        />
+        {/* Form */}
+        <View style={styles.form}>
+          <TextInput
+            style={styles.input}
+            placeholder="Username"
+            placeholderTextColor={colors.textMuted}
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
 
-        <TextInput
-          style={styles.input}
-          placeholder="Password"
-          placeholderTextColor={colors.textMuted}
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+          <TextInput
+            style={styles.input}
+            placeholder="Password"
+            placeholderTextColor={colors.textMuted}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            autoCapitalize="none"
+          />
 
-        <TouchableOpacity
-          style={[
-            styles.button,
-            (!username || !password || loading) && styles.disabled,
-          ]}
-          onPress={handleLogin}
-          disabled={!username || !password || loading}
-          activeOpacity={0.85}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Login</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            disabled={loading}
+            onPress={handleLogin}
+            activeOpacity={0.85}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Login</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Footer */}
+        <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.linkButton}
+            onPress={() => navigation.navigate("Register")}
+            disabled={loading}
+          >
+            <Text style={styles.linkText}>
+              Don't have an account? <Text style={styles.linkTextBold}>Register</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
-
-      <TouchableOpacity
-        onPress={() => navigation.navigate("Register")}
-        activeOpacity={0.7}
-      >
-        <Text style={[typography.caption, styles.link]}>
-          Create account
-        </Text>
-      </TouchableOpacity>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -113,38 +157,68 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    padding: spacing.lg,
-    justifyContent: "space-between",
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: spacing.xl,
+    justifyContent: 'space-between',
+    paddingTop: spacing.xxxl * 2,
+    paddingBottom: spacing.xxxl,
+  },
+  header: {
+    alignItems: 'center',
+    paddingTop: spacing.xl,
   },
   title: {
+    ...typography.title,
     color: colors.textPrimary,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.sm,
+  },
+  subtitle: {
+    ...typography.body,
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  form: {
+    width: "100%",
   },
   input: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
+    padding: spacing.lg,
+    fontSize: 16,
     color: colors.textPrimary,
+    marginBottom: spacing.lg,
     ...elevation.card,
   },
   button: {
     backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
+    paddingVertical: spacing.lg,
     borderRadius: radius.md,
     alignItems: "center",
-    marginTop: spacing.sm,
+    marginTop: spacing.md,
+    ...elevation.sm,
   },
-  disabled: {
+  buttonDisabled: {
     opacity: 0.5,
   },
   buttonText: {
     color: "#fff",
     fontWeight: "600",
-    fontSize: typography.body.fontSize,
+    fontSize: 16,
   },
-  link: {
+  footer: {
+    alignItems: 'center',
+  },
+  linkButton: {
+    paddingVertical: spacing.md,
+  },
+  linkText: {
     color: colors.textSecondary,
-    textAlign: "center",
+    fontSize: 15,
+  },
+  linkTextBold: {
+    color: colors.primary,
+    fontWeight: '600',
   },
 });

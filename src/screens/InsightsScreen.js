@@ -298,6 +298,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
     lineHeight: 22,
   },
+  // Add this to your InsightsScreen.js empty state container style:
+
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center', // ← Centers vertically
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xxxl,
+  },
+
   progressContainer: {
     marginTop: spacing.xl,
     padding: spacing.md,
