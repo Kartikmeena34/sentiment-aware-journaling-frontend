@@ -1,17 +1,17 @@
 export const colors = {
-  background: "#F4F6F8",
-  surface: "#FFFFFF",
+  background: "#FDF6EC",
+  surface: "#FFFDF9",
 
-  textPrimary: "#1F2933",   // deep soft gray
-  textSecondary: "#6B7280", // muted gray
-  textMuted: "#9CA3AF",
+  textPrimary: "#2D1B0E",
+  textSecondary: "#7A5C44",
+  textMuted: "#B09880",
 
-  primary: "#4C7DFF",       // calm blue (less saturated)
-  primarySoft: "#E8EDFF",   // soft background blue
+  primary: "#C17B4E",
+  primarySoft: "#F5E6D3",
 
-  border: "#E5E7EB",
-  divider: "#EEF0F2",
+  border: "#EDE0D0",
+  divider: "#F0E4D4",
 
-  success: "#3FA796",       // muted green
-  danger: "#D46A6A",        // softened red
+  success: "#6A9E7F",
+  danger: "#C17070",
 };

@@ -23,7 +23,7 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: "#4A90E2",
+        tabBarActiveTintColor: "#C17B4E",
         tabBarIcon: ({ color, size }) => {
           let icon;
           if (route.name === "Journal") icon = "book-outline";
