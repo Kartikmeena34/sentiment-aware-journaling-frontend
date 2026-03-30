@@ -7,7 +7,7 @@ const BASE_URL = "https://sentiment-aware-journaling-backend.onrender.com";
 const api = axios.create({
   baseURL: BASE_URL,
   headers: { "Content-Type": "application/json" },
-  timeout: 60000, // FIX 1: 60 second timeout on all requests
+  timeout: 120000, // FIX 1: 120 second timeout on all requests
 });
 
 let isRefreshing = false;
@@ -81,7 +81,7 @@ api.interceptors.response.use(
         const response = await axios.post(
           `${BASE_URL}/api/auth/token/refresh/`,
           { refresh: refreshToken },
-          { timeout: 60000 } // 60s timeout for cold start
+          { timeout: 120000 } // 120s timeout for cold start
         );
 
         // FIX 2: Save BOTH new tokens (rotation fix)
