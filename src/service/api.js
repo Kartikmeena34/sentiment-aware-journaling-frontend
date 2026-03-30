@@ -1,4 +1,4 @@
-// api.js - FIXED: Skip token refresh for auth endpoints
+// api.js
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -7,6 +7,7 @@ const BASE_URL = "https://sentiment-aware-journaling-backend.onrender.com";
 const api = axios.create({
   baseURL: BASE_URL,
   headers: { "Content-Type": "application/json" },
+  timeout: 60000, // FIX 1: 60 second timeout on all requests
 });
 
 let isRefreshing = false;
@@ -41,18 +42,18 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Skip token refresh for authentication endpoints
-    const isAuthEndpoint = originalRequest.url?.includes('/auth/login') 
-      || originalRequest.url?.includes('/auth/register');
-    
+    // FIX 3: Also skip token/refresh endpoint to prevent infinite loop
+    const isAuthEndpoint = originalRequest.url?.includes('/auth/login')
+      || originalRequest.url?.includes('/auth/register')
+      || originalRequest.url?.includes('/token/refresh/');
+
     if (isAuthEndpoint) {
       console.log("Auth endpoint failed - not attempting token refresh");
       return Promise.reject(error);
     }
 
-    // Handle 401 errors (token expired) for protected endpoints
     if (error.response?.status === 401 && !originalRequest._retry) {
-      
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -69,21 +70,27 @@ api.interceptors.response.use(
 
       try {
         const refreshToken = await AsyncStorage.getItem("refreshToken");
-        
+
         if (!refreshToken) {
           throw new Error("No refresh token available");
         }
 
         console.log("🔄 Access token expired, refreshing...");
 
+        // FIX 1: Add timeout to refresh request specifically
         const response = await axios.post(
           `${BASE_URL}/api/auth/token/refresh/`,
-          { refresh: refreshToken }
+          { refresh: refreshToken },
+          { timeout: 60000 } // 60s timeout for cold start
         );
 
-        const { access } = response.data;
-
+        // FIX 2: Save BOTH new tokens (rotation fix)
+        const { access, refresh } = response.data;
         await AsyncStorage.setItem("accessToken", access);
+        if (refresh) {
+          await AsyncStorage.setItem("refreshToken", refresh);
+        }
+
         api.defaults.headers.common.Authorization = `Bearer ${access}`;
         originalRequest.headers.Authorization = `Bearer ${access}`;
 
