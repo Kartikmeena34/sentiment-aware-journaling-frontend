@@ -1,5 +1,4 @@
-// LoginScreen.js - COMPLETE VERSION with better error handling
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,79 +8,104 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
   Alert,
+  Animated,
 } from "react-native";
 import api from "../service/api";
 import { AuthContext } from "../context/AuthContext";
 
-import { colors } from "../theme/colors";
-import { spacing, radius, elevation } from "../theme/tokens";
-import { typography } from "../theme/typography";
+const WARM = {
+  bg: "#FDF6EC",
+  surface: "#FFFDF9",
+  accent: "#C17B4E",
+  accentSoft: "#F5E6D3",
+  textPrimary: "#2D1B0E",
+  textSecondary: "#7A5C44",
+  textMuted: "#B09880",
+  border: "#EDE0D0",
+};
 
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
 
   const { login } = useContext(AuthContext);
 
+  const headerSlide = useRef(new Animated.Value(-60)).current;
+  const headerFade = useRef(new Animated.Value(0)).current;
+  const cardSlide = useRef(new Animated.Value(60)).current;
+  const cardFade = useRef(new Animated.Value(0)).current;
+  const buttonScale = useRef(new Animated.Value(0.95)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(headerSlide, {
+        toValue: 0,
+        tension: 40,
+        friction: 12,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerFade, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.delay(250),
+        Animated.parallel([
+          Animated.spring(cardSlide, {
+            toValue: 0,
+            tension: 40,
+            friction: 12,
+            useNativeDriver: true,
+          }),
+          Animated.timing(cardFade, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+      Animated.sequence([
+        Animated.delay(450),
+        Animated.spring(buttonScale, {
+          toValue: 1,
+          tension: 50,
+          friction: 10,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, []);
+
   const handleLogin = async () => {
-    // Validation
     if (!username.trim() || !password.trim()) {
       Alert.alert("Error", "Please enter both username and password");
       return;
     }
 
     setLoading(true);
-
     try {
-      console.log("=== LOGIN ATTEMPT ===");
-      console.log("Username:", username.trim());
-      
       const response = await api.post("/api/auth/login/", {
         username: username.trim(),
         password: password.trim(),
       });
 
-      console.log("✓ Backend response received");
-      console.log("Response data:", JSON.stringify(response.data, null, 2));
-
-      // Extract data from response
       const { access, refresh, user } = response.data;
-
-      // Validate we got tokens
-      if (!access || !refresh) {
-        console.log("❌ Missing tokens in response");
-        throw new Error("Invalid response from server - missing tokens");
-      }
-
-      console.log("✓ Tokens extracted");
-      console.log("✓ User data:", user ? "Present" : "Not provided");
-
-      // Call login from AuthContext
+      if (!access || !refresh) throw new Error("Invalid response from server");
       await login(access, refresh, user);
-
-      console.log("✓ Login successful - navigation will happen automatically");
-      
     } catch (error) {
-      console.log("=== LOGIN ERROR ===");
-      console.log("Error:", error);
-      
       let errorMessage = "Login failed. Please try again.";
-      
       if (error.response) {
-        console.log("Server response:", error.response.data);
-        errorMessage = error.response.data?.message 
+        errorMessage = error.response.data?.message
           || error.response.data?.error
           || "Invalid username or password";
       } else if (error.request) {
-        console.log("No response from server");
         errorMessage = "Cannot connect to server. Check your internet connection.";
-      } else {
-        console.log("Error message:", error.message);
-        errorMessage = error.message;
       }
-      
       Alert.alert("Login Failed", errorMessage);
     } finally {
       setLoading(false);
@@ -93,62 +117,97 @@ export default function LoginScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Login to continue journaling</Text>
-        </View>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Animated header band */}
+        <Animated.View
+          style={[
+            styles.headerBand,
+            {
+              opacity: headerFade,
+              transform: [{ translateY: headerSlide }],
+            },
+          ]}
+        >
+          <Text style={styles.appLabel}>📖 MoodScript</Text>
+          <Text style={styles.headerTitle}>Welcome{"\n"}back.</Text>
+          <Text style={styles.headerSubtitle}>
+            Your journal has been waiting for you
+          </Text>
+        </Animated.View>
 
-        {/* Form */}
-        <View style={styles.form}>
+        {/* Animated form card */}
+        <Animated.View
+          style={[
+            styles.card,
+            {
+              opacity: cardFade,
+              transform: [{ translateY: cardSlide }],
+            },
+          ]}
+        >
+          <Text style={styles.cardTitle}>Sign In</Text>
+
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              focusedField === "username" && styles.inputFocused,
+            ]}
             placeholder="Username"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={WARM.textMuted}
             value={username}
             onChangeText={setUsername}
+            onFocus={() => setFocusedField("username")}
+            onBlur={() => setFocusedField(null)}
             autoCapitalize="none"
             autoCorrect={false}
           />
 
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              focusedField === "password" && styles.inputFocused,
+            ]}
             placeholder="Password"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={WARM.textMuted}
             value={password}
             onChangeText={setPassword}
+            onFocus={() => setFocusedField("password")}
+            onBlur={() => setFocusedField(null)}
             secureTextEntry
             autoCapitalize="none"
           />
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            disabled={loading}
-            onPress={handleLogin}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Login</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+          <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              disabled={loading}
+              onPress={handleLogin}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Sign In →</Text>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
           <TouchableOpacity
-            style={styles.linkButton}
+            style={styles.registerLink}
             onPress={() => navigation.navigate("Register")}
             disabled={loading}
           >
-            <Text style={styles.linkText}>
-              Don't have an account? <Text style={styles.linkTextBold}>Register</Text>
+            <Text style={styles.registerLinkText}>
+              Don't have an account?{" "}
+              <Text style={styles.registerLinkBold}>Create one</Text>
             </Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </Animated.View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -156,69 +215,106 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: WARM.surface,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: spacing.xl,
-    justifyContent: 'space-between',
-    paddingTop: spacing.xxxl * 2,
-    paddingBottom: spacing.xxxl,
+  scroll: {
+    flexGrow: 1,
   },
-  header: {
-    alignItems: 'center',
-    paddingTop: spacing.xl,
+  headerBand: {
+    backgroundColor: WARM.accent,
+    paddingTop: 80,
+    paddingBottom: 48,
+    paddingHorizontal: 28,
   },
-  title: {
-    ...typography.title,
-    color: colors.textPrimary,
-    marginBottom: spacing.sm,
+  appLabel: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.7)",
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    marginBottom: 16,
   },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
+  headerTitle: {
+    fontSize: 48,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: -1.5,
+    lineHeight: 52,
+    marginBottom: 12,
   },
-  form: {
-    width: "100%",
+  headerSubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.75)",
+    fontWeight: "400",
+    lineHeight: 20,
+  },
+  card: {
+    backgroundColor: WARM.surface,
+    borderRadius: 28,
+    padding: 28,
+    marginHorizontal: 20,
+    marginTop: -24,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: WARM.border,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: WARM.textPrimary,
+    marginBottom: 20,
+    letterSpacing: -0.3,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-    fontSize: 16,
-    color: colors.textPrimary,
-    marginBottom: spacing.lg,
-    ...elevation.card,
+    backgroundColor: WARM.bg,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: WARM.textPrimary,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: WARM.border,
+  },
+  inputFocused: {
+    borderColor: WARM.accent,
+    backgroundColor: WARM.surface,
   },
   button: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.lg,
-    borderRadius: radius.md,
+    backgroundColor: WARM.accent,
+    paddingVertical: 16,
+    borderRadius: 14,
     alignItems: "center",
-    marginTop: spacing.md,
-    ...elevation.sm,
+    marginTop: 4,
+    marginBottom: 16,
+    shadowColor: WARM.accent,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.5,
   },
   buttonText: {
     color: "#fff",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 16,
+    letterSpacing: 0.3,
   },
-  footer: {
-    alignItems: 'center',
+  registerLink: {
+    alignItems: "center",
+    paddingVertical: 4,
   },
-  linkButton: {
-    paddingVertical: spacing.md,
+  registerLinkText: {
+    fontSize: 14,
+    color: WARM.textSecondary,
   },
-  linkText: {
-    color: colors.textSecondary,
-    fontSize: 15,
-  },
-  linkTextBold: {
-    color: colors.primary,
-    fontWeight: '600',
+  registerLinkBold: {
+    color: WARM.accent,
+    fontWeight: "700",
   },
 });

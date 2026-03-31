@@ -261,7 +261,7 @@ export default function RegisterScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: WARM.accent,
+    backgroundColor: WARM.surface,
   },
   scroll: {
     flexGrow: 1,
