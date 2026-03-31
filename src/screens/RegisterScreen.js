@@ -1,5 +1,4 @@
-// RegisterScreen.js - COMPLETE VERSION with better error handling
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,13 +10,21 @@ import {
   Platform,
   ScrollView,
   Alert,
+  Animated,
 } from "react-native";
 import api from "../service/api";
 import { AuthContext } from "../context/AuthContext";
 
-import { colors } from "../theme/colors";
-import { spacing, radius, elevation } from "../theme/tokens";
-import { typography } from "../theme/typography";
+const WARM = {
+  bg: "#FDF6EC",
+  surface: "#FFFDF9",
+  accent: "#C17B4E",
+  accentSoft: "#F5E6D3",
+  textPrimary: "#2D1B0E",
+  textSecondary: "#7A5C44",
+  textMuted: "#B09880",
+  border: "#EDE0D0",
+};
 
 export default function RegisterScreen({ navigation }) {
   const [username, setUsername] = useState("");
@@ -25,93 +32,97 @@ export default function RegisterScreen({ navigation }) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
 
   const { login } = useContext(AuthContext);
 
+  // Animation values
+  const headerSlide = useRef(new Animated.Value(-60)).current;
+  const headerFade = useRef(new Animated.Value(0)).current;
+  const cardSlide = useRef(new Animated.Value(60)).current;
+  const cardFade = useRef(new Animated.Value(0)).current;
+  const buttonScale = useRef(new Animated.Value(0.95)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      // Header slides down from top
+      Animated.spring(headerSlide, {
+        toValue: 0,
+        tension: 40,
+        friction: 12,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerFade, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      // Card slides up from bottom — slight delay
+      Animated.sequence([
+        Animated.delay(250),
+        Animated.parallel([
+          Animated.spring(cardSlide, {
+            toValue: 0,
+            tension: 40,
+            friction: 12,
+            useNativeDriver: true,
+          }),
+          Animated.timing(cardFade, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+      // Button scales in last
+      Animated.sequence([
+        Animated.delay(450),
+        Animated.spring(buttonScale, {
+          toValue: 1,
+          tension: 50,
+          friction: 10,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, []);
+
   const handleRegister = async () => {
-    // Validation
     if (!username.trim() || !email.trim() || !password.trim()) {
       Alert.alert("Error", "Please fill in all fields");
       return;
     }
-
     if (password !== confirmPassword) {
       Alert.alert("Error", "Passwords do not match");
       return;
     }
-
     if (password.length < 8) {
       Alert.alert("Error", "Password must be at least 8 characters");
       return;
     }
 
     setLoading(true);
-
     try {
-      console.log("=== REGISTRATION ATTEMPT ===");
-      console.log("Username:", username.trim());
-      console.log("Email:", email.trim());
-      
       const response = await api.post("/api/auth/register/", {
         username: username.trim(),
         email: email.trim(),
         password: password.trim(),
       });
-
-      console.log("✓ Backend response received");
-      console.log("Response data:", JSON.stringify(response.data, null, 2));
-
-      // Extract data from response
       const { access, refresh, user } = response.data;
-
-      // Validate we got tokens
-      if (!access || !refresh) {
-        console.log("❌ Missing tokens in response");
-        throw new Error("Invalid response from server - missing tokens");
-      }
-
-      console.log("✓ Tokens extracted");
-      console.log("✓ User data:", user ? "Present" : "Not provided");
-
-      // Call login from AuthContext
+      if (!access || !refresh) throw new Error("Invalid response");
       await login(access, refresh, user);
-
-      console.log("✓ Registration successful - navigation will happen automatically");
-      
     } catch (error) {
-      console.log("=== REGISTRATION ERROR ===");
-      console.log("Error:", error);
-      
-      let errorMessage = "Registration failed. Please try again.";
-      
+      let msg = "Registration failed. Please try again.";
       if (error.response?.data) {
-        const data = error.response.data;
-        console.log("Server response:", data);
-        
-        if (data.username) {
-          errorMessage = Array.isArray(data.username) 
-            ? data.username[0] 
-            : "Username already exists";
-        } else if (data.email) {
-          errorMessage = Array.isArray(data.email)
-            ? data.email[0]
-            : "Email already exists";
-        } else if (data.password) {
-          errorMessage = Array.isArray(data.password)
-            ? data.password[0]
-            : "Password is too weak";
-        } else if (data.message) {
-          errorMessage = data.message;
-        }
+        const d = error.response.data;
+        if (d.username) msg = Array.isArray(d.username) ? d.username[0] : "Username already exists";
+        else if (d.email) msg = Array.isArray(d.email) ? d.email[0] : "Email already exists";
+        else if (d.password) msg = Array.isArray(d.password) ? d.password[0] : "Password too weak";
+        else if (d.message) msg = d.message;
       } else if (error.request) {
-        console.log("No response from server");
-        errorMessage = "Cannot connect to server. Check your internet connection.";
-      } else {
-        console.log("Error message:", error.message);
-        errorMessage = error.message;
+        msg = "Cannot connect to server.";
       }
-      
-      Alert.alert("Registration Failed", errorMessage);
+      Alert.alert("Registration Failed", msg);
     } finally {
       setLoading(false);
     }
@@ -122,85 +133,126 @@ export default function RegisterScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Start your journaling journey</Text>
-        </View>
+        {/* Animated header band */}
+        <Animated.View
+          style={[
+            styles.headerBand,
+            {
+              opacity: headerFade,
+              transform: [{ translateY: headerSlide }],
+            },
+          ]}
+        >
+          <Text style={styles.appLabel}>📖 MoodScript</Text>
+          <Text style={styles.headerTitle}>Begin your{"\n"}journey.</Text>
+          <Text style={styles.headerSubtitle}>
+            A private space to understand yourself
+          </Text>
+        </Animated.View>
 
-        {/* Form */}
-        <View style={styles.form}>
+        {/* Animated form card */}
+        <Animated.View
+          style={[
+            styles.card,
+            {
+              opacity: cardFade,
+              transform: [{ translateY: cardSlide }],
+            },
+          ]}
+        >
+          <Text style={styles.cardTitle}>Create Account</Text>
+
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              focusedField === "username" && styles.inputFocused,
+            ]}
             placeholder="Username"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={WARM.textMuted}
             value={username}
             onChangeText={setUsername}
+            onFocus={() => setFocusedField("username")}
+            onBlur={() => setFocusedField(null)}
             autoCapitalize="none"
             autoCorrect={false}
           />
 
           <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={colors.textMuted}
+            style={[
+              styles.input,
+              focusedField === "email" && styles.inputFocused,
+            ]}
+            placeholder="Email address"
+            placeholderTextColor={WARM.textMuted}
             value={email}
             onChangeText={setEmail}
+            onFocus={() => setFocusedField("email")}
+            onBlur={() => setFocusedField(null)}
             autoCapitalize="none"
-            autoCorrect={false}
             keyboardType="email-address"
           />
 
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              focusedField === "password" && styles.inputFocused,
+            ]}
             placeholder="Password (min 8 characters)"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={WARM.textMuted}
             value={password}
             onChangeText={setPassword}
+            onFocus={() => setFocusedField("password")}
+            onBlur={() => setFocusedField(null)}
             secureTextEntry
             autoCapitalize="none"
           />
 
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              focusedField === "confirm" && styles.inputFocused,
+            ]}
             placeholder="Confirm Password"
-            placeholderTextColor={colors.textMuted}
+            placeholderTextColor={WARM.textMuted}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
+            onFocus={() => setFocusedField("confirm")}
+            onBlur={() => setFocusedField(null)}
             secureTextEntry
             autoCapitalize="none"
           />
 
-          <TouchableOpacity
-            style={[styles.button, loading && styles.buttonDisabled]}
-            disabled={loading}
-            onPress={handleRegister}
-            activeOpacity={0.85}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Register</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+          <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              disabled={loading}
+              onPress={handleRegister}
+              activeOpacity={0.85}
+            >
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Create Account →</Text>
+              )}
+            </TouchableOpacity>
+          </Animated.View>
 
-        {/* Footer */}
-        <View style={styles.footer}>
           <TouchableOpacity
-            style={styles.linkButton}
+            style={styles.loginLink}
             onPress={() => navigation.navigate("Login")}
             disabled={loading}
           >
-            <Text style={styles.linkText}>
-              Already have an account? <Text style={styles.linkTextBold}>Login</Text>
+            <Text style={styles.loginLinkText}>
+              Already have an account?{" "}
+              <Text style={styles.loginLinkBold}>Sign in</Text>
             </Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -209,71 +261,106 @@ export default function RegisterScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: WARM.accent,
   },
-  scrollContent: {
+  scroll: {
     flexGrow: 1,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.xxxl * 1.5,
-    paddingBottom: spacing.xxxl,
-    justifyContent: 'space-between',
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: spacing.xxl,
-    paddingTop: spacing.xl,
+  headerBand: {
+    backgroundColor: WARM.accent,
+    paddingTop: 72,
+    paddingBottom: 48,
+    paddingHorizontal: 28,
   },
-  title: {
-    ...typography.title,
-    color: colors.textPrimary,
-    marginBottom: spacing.sm,
+  appLabel: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.7)",
+    fontWeight: "600",
+    letterSpacing: 0.5,
+    marginBottom: 16,
   },
-  subtitle: {
-    ...typography.body,
-    color: colors.textSecondary,
-    textAlign: 'center',
+  headerTitle: {
+    fontSize: 40,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: -1,
+    lineHeight: 46,
+    marginBottom: 12,
   },
-  form: {
-    width: "100%",
+  headerSubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.75)",
+    fontWeight: "400",
+    lineHeight: 20,
+  },
+  card: {
+    backgroundColor: WARM.surface,
+    borderRadius: 28,
+    padding: 24,
+    marginHorizontal: 20,
+    marginTop: -24,
+    marginBottom: 32,
+    borderWidth: 1,
+    borderColor: WARM.border,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: WARM.textPrimary,
+    marginBottom: 20,
+    letterSpacing: -0.3,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.lg,
-    fontSize: 16,
-    color: colors.textPrimary,
-    marginBottom: spacing.md,
-    ...elevation.card,
+    backgroundColor: WARM.bg,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: WARM.textPrimary,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: WARM.border,
+  },
+  inputFocused: {
+    borderColor: WARM.accent,
+    backgroundColor: WARM.surface,
   },
   button: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.lg,
-    borderRadius: radius.md,
+    backgroundColor: WARM.accent,
+    paddingVertical: 16,
+    borderRadius: 14,
     alignItems: "center",
-    marginTop: spacing.md,
-    ...elevation.sm,
+    marginTop: 4,
+    marginBottom: 16,
+    shadowColor: WARM.accent,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   buttonDisabled: {
     opacity: 0.5,
   },
   buttonText: {
     color: "#fff",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 16,
+    letterSpacing: 0.3,
   },
-  footer: {
-    alignItems: 'center',
-    marginTop: spacing.xl,
+  loginLink: {
+    alignItems: "center",
+    paddingVertical: 4,
   },
-  linkButton: {
-    paddingVertical: spacing.md,
+  loginLinkText: {
+    fontSize: 14,
+    color: WARM.textSecondary,
   },
-  linkText: {
-    color: colors.textSecondary,
-    fontSize: 15,
-  },
-  linkTextBold: {
-    color: colors.primary,
-    fontWeight: '600',
+  loginLinkBold: {
+    color: WARM.accent,
+    fontWeight: "700",
   },
 });
