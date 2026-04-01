@@ -1,3 +1,4 @@
+// EmotionFeedbackScreen.js
 import React, { useEffect, useRef } from "react";
 import {
   View,
@@ -8,143 +9,130 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-const WARM = {
-  bg: "#FDF6EC",
-  surface: "#FFFDF9",
-  accent: "#C17B4E",
-  accentSoft: "#F5E6D3",
-  textPrimary: "#2D1B0E",
-  textSecondary: "#7A5C44",
-  textMuted: "#B09880",
-  border: "#EDE0D0",
-  success: "#6A9E7F",
-};
+import { colors } from "../theme/colors";
+import { spacing, radius, elevation } from "../theme/tokens";
+import { typography } from "../theme/typography";
+
+const CRISIS_MESSAGE =
+  "It sounds like you've been carrying a lot lately. You don't have to work through this alone — consider reaching out to someone you trust.";
 
 export default function EmotionFeedbackScreen({ route, navigation }) {
-  const { contextual_message, has_insights } = route.params;
+  const { contextual_message, has_insights, crisis_flag } = route.params;
 
-  const scaleAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(24)).current;
-  const buttonFade = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const crisisAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.sequence([
-      // Checkmark pops in
+      // Icon scale first
       Animated.spring(scaleAnim, {
         toValue: 1,
         tension: 50,
         friction: 7,
         useNativeDriver: true,
       }),
-      // Card fades and slides up
+      // Card fade + slide
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 400,
           useNativeDriver: true,
         }),
-        Animated.spring(slideAnim, {
+        Animated.timing(slideAnim, {
           toValue: 0,
-          tension: 60,
-          friction: 10,
+          duration: 400,
           useNativeDriver: true,
         }),
       ]),
-      // Button fades in last
-      Animated.timing(buttonFade, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
+      // Crisis card fades in last if present
+      ...(crisis_flag
+        ? [
+            Animated.timing(crisisAnim, {
+              toValue: 1,
+              duration: 500,
+              delay: 200,
+              useNativeDriver: true,
+            }),
+          ]
+        : []),
     ]).start();
   }, []);
 
   return (
     <View style={styles.container}>
-      {/* Center content */}
-      <View style={styles.center}>
-
-        {/* Checkmark */}
+      <View style={styles.content}>
+        {/* Success Icon */}
         <Animated.View
-          style={[
-            styles.checkContainer,
-            { transform: [{ scale: scaleAnim }] }
-          ]}
+          style={[styles.iconContainer, { transform: [{ scale: scaleAnim }] }]}
         >
-          <View style={styles.checkOuter}>
-            <View style={styles.checkInner}>
-              <Ionicons name="checkmark" size={36} color="#fff" />
-            </View>
+          <View style={styles.iconCircle}>
+            <Ionicons name="checkmark-circle" size={64} color={colors.primary} />
           </View>
-          <Text style={styles.savedText}>Entry Saved</Text>
-          <Text style={styles.savedSubtext}>
-            {new Date().toLocaleDateString("en-US", {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })}
-          </Text>
         </Animated.View>
 
-        {/* Card */}
+        {/* Main Card */}
         <Animated.View
           style={[
             styles.card,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
           ]}
         >
-          {/* Contextual message */}
+          <Text style={[typography.title, styles.confirmation]}>
+            Entry Saved
+          </Text>
+
           {contextual_message && (
-            <View style={styles.messageRow}>
-              <View style={styles.messageIcon}>
-                <Ionicons
-                  name="sparkles-outline"
-                  size={16}
-                  color={WARM.accent}
-                />
-              </View>
-              <Text style={styles.messageText}>{contextual_message}</Text>
+            <View style={styles.contextualContainer}>
+              <Ionicons
+                name="information-circle-outline"
+                size={20}
+                color={colors.primary}
+              />
+              <Text style={[typography.body, styles.contextual]}>
+                {contextual_message}
+              </Text>
             </View>
           )}
 
-          {/* Divider */}
           <View style={styles.divider} />
 
-          {/* Insight hint */}
-          <View style={styles.hintRow}>
-            {has_insights ? (
-              <>
-                <Ionicons
-                  name="bulb-outline"
-                  size={16}
-                  color={WARM.success}
-                />
-                <Text style={[styles.hintText, { color: WARM.success }]}>
-                  New insights are ready — check the Insights tab
-                </Text>
-              </>
-            ) : (
-              <>
-                <Ionicons
-                  name="hourglass-outline"
-                  size={16}
-                  color={WARM.textMuted}
-                />
-                <Text style={styles.hintText}>
-                  Keep journaling to unlock insights
-                </Text>
-              </>
-            )}
-          </View>
+          {has_insights ? (
+            <View style={styles.hintContainer}>
+              <Ionicons name="bulb-outline" size={18} color={colors.textSecondary} />
+              <Text style={[typography.caption, styles.hint]}>
+                Check your Insights tab to discover patterns
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.hintContainer}>
+              <Ionicons name="hourglass-outline" size={18} color={colors.textSecondary} />
+              <Text style={[typography.caption, styles.hint]}>
+                Keep journaling to unlock insights
+              </Text>
+            </View>
+          )}
         </Animated.View>
+
+        {/* Crisis Card — only shown when flag is true */}
+        {crisis_flag && (
+          <Animated.View style={[styles.crisisCard, { opacity: crisisAnim }]}>
+            <View style={styles.crisisHeader}>
+              <Ionicons name="heart-outline" size={18} color="#B8760A" />
+              <Text style={[typography.section, styles.crisisTitle]}>
+                A Gentle Check-In
+              </Text>
+            </View>
+            <Text style={[typography.body, styles.crisisMessage]}>
+              {CRISIS_MESSAGE}
+            </Text>
+          </Animated.View>
+        )}
       </View>
 
-      {/* Done button */}
-      <Animated.View style={[styles.buttonContainer, { opacity: buttonFade }]}>
+      {/* Action Button */}
+      <Animated.View style={{ opacity: fadeAnim }}>
         <TouchableOpacity
           style={styles.button}
           onPress={() => navigation.navigate("Main", { screen: "Journal" })}
@@ -160,123 +148,107 @@ export default function EmotionFeedbackScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: WARM.bg,
-    padding: 24,
+    backgroundColor: colors.background,
+    padding: spacing.lg,
     justifyContent: "space-between",
   },
-  center: {
+  content: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    gap: 24,
-    paddingBottom: 40,
+    gap: spacing.lg,
   },
-  checkContainer: {
-    alignItems: "center",
-    marginBottom: 8,
+  iconContainer: {
+    marginBottom: spacing.sm,
   },
-  checkOuter: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: WARM.accentSoft,
+  iconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: colors.surface,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: WARM.accent + "40",
-  },
-  checkInner: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: WARM.accent,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: WARM.accent,
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
-  savedText: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: WARM.textPrimary,
-    letterSpacing: -0.5,
-    marginBottom: 4,
-  },
-  savedSubtext: {
-    fontSize: 13,
-    color: WARM.textMuted,
-    fontWeight: "400",
+    ...elevation.card,
   },
   card: {
     width: "100%",
-    backgroundColor: WARM.surface,
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: WARM.border,
-    shadowColor: "#C17B4E",
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    ...elevation.card,
   },
-  messageRow: {
+  confirmation: {
+    color: colors.textPrimary,
+    marginBottom: spacing.lg,
+    textAlign: "center",
+  },
+  contextualContainer: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 10,
-    backgroundColor: WARM.accentSoft,
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 4,
+    gap: spacing.sm,
+    backgroundColor: colors.background,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    marginBottom: spacing.md,
   },
-  messageIcon: {
-    marginTop: 1,
-  },
-  messageText: {
-    fontSize: 14,
-    color: WARM.textSecondary,
-    lineHeight: 21,
+  contextual: {
+    color: colors.textSecondary,
+    lineHeight: 20,
     flex: 1,
   },
   divider: {
     height: 1,
-    backgroundColor: WARM.border,
-    marginVertical: 16,
+    backgroundColor: colors.border,
+    marginVertical: spacing.md,
   },
-  hintRow: {
+  hintContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: spacing.sm,
     justifyContent: "center",
   },
-  hintText: {
-    fontSize: 13,
-    color: WARM.textMuted,
-    flex: 1,
-    lineHeight: 19,
+  hint: {
+    color: colors.textSecondary,
+    textAlign: "center",
   },
-  buttonContainer: {
-    paddingTop: 16,
+
+  // ── Crisis Card ──
+  crisisCard: {
+    width: "100%",
+    backgroundColor: "#FFF8EE",
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    borderLeftWidth: 4,
+    borderLeftColor: "#F5A623",
+    shadowColor: "#F5A623",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  button: {
-    backgroundColor: WARM.accent,
-    paddingVertical: 18,
-    borderRadius: 14,
+  crisisHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    shadowColor: WARM.accent,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  crisisTitle: {
+    color: "#B8760A",
+  },
+  crisisMessage: {
+    color: "#7A5200",
+    lineHeight: 22,
+  },
+
+  button: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.md,
+    borderRadius: radius.md,
+    alignItems: "center",
+    ...elevation.card,
   },
   buttonText: {
     color: "#fff",
-    fontWeight: "700",
-    fontSize: 16,
-    letterSpacing: 0.3,
+    fontWeight: "600",
+    fontSize: typography.body.fontSize,
   },
 });
