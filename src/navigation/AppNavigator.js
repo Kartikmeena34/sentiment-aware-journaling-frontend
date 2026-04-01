@@ -1,4 +1,4 @@
-// AppNavigator.js - UPDATED
+// AppNavigator.js
 import React, { useContext } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -11,9 +11,10 @@ import RegisterScreen from "../screens/RegisterScreen";
 import JournalScreen from "../screens/JournalScreen";
 import TrendScreen from "../screens/TrendScreen";
 import InsightsScreen from "../screens/InsightsScreen";
-import ProfileScreen from "../screens/ProfileScreen"; 
+import ProfileScreen from "../screens/ProfileScreen";
 import EmotionFeedbackScreen from "../screens/EmotionFeedbackScreen";
 import EntryDetailScreen from "../screens/EntryDetailScreen";
+import ReflectScreen from "../screens/ReflectScreen";   // NEW
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -23,8 +24,8 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: "#C17B4E",
-        tabBarIcon: ({ color, size }) => {
+        tabBarActiveTintColor: "#4A90E2",
+        tabBarIcon: ({ color }) => {
           let icon;
           if (route.name === "Journal") icon = "book-outline";
           if (route.name === "Insights") icon = "bulb-outline";
@@ -58,14 +59,9 @@ export default function AppNavigator() {
       {isAuthenticated ? (
         <>
           <Stack.Screen name="Main" component={MainTabs} />
-          <Stack.Screen
-            name="EmotionFeedback"
-            component={EmotionFeedbackScreen}
-          />
-          <Stack.Screen 
-            name="EntryDetail"
-            component={EntryDetailScreen}
-          />
+          <Stack.Screen name="EmotionFeedback" component={EmotionFeedbackScreen} />
+          <Stack.Screen name="EntryDetail" component={EntryDetailScreen} />
+          <Stack.Screen name="Reflect" component={ReflectScreen} />  {/* NEW */}
         </>
       ) : (
         <>

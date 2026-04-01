@@ -19,6 +19,15 @@ import { typography } from "../theme/typography";
 export default function JournalScreen({ navigation }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [activeMode, setActiveMode] = useState("journal"); // "journal" | "reflect"
+
+  const handleModeSwitch = (mode) => {
+    if (mode === "reflect") {
+      navigation.navigate("Reflect");
+    } else {
+      setActiveMode("journal");
+    }
+  };
 
   const handleSave = async () => {
     if (!text.trim()) {
@@ -33,13 +42,12 @@ export default function JournalScreen({ navigation }) {
       });
 
       const { contextual_message, has_insights, crisis_flag } = response.data;
-
       setText("");
 
       navigation.navigate("EmotionFeedback", {
         contextual_message,
         has_insights,
-        crisis_flag: crisis_flag || false,  // Pass crisis flag through
+        crisis_flag: crisis_flag || false,
       });
     } catch (error) {
       Alert.alert("Error", "Failed to save entry. Please try again.");
@@ -54,10 +62,52 @@ export default function JournalScreen({ navigation }) {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <View style={styles.content}>
+
+        {/* ── Mode Toggle ── */}
+        <View style={styles.toggleRow}>
+          <TouchableOpacity
+            style={[
+              styles.toggleButton,
+              activeMode === "journal" && styles.toggleButtonActive,
+            ]}
+            onPress={() => setActiveMode("journal")}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.toggleText,
+                activeMode === "journal" && styles.toggleTextActive,
+              ]}
+            >
+              Journal
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.toggleButton,
+              activeMode === "reflect" && styles.toggleButtonActive,
+            ]}
+            onPress={() => handleModeSwitch("reflect")}
+            activeOpacity={0.8}
+          >
+            <Text
+              style={[
+                styles.toggleText,
+                activeMode === "reflect" && styles.toggleTextActive,
+              ]}
+            >
+              Reflect
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Header ── */}
         <View style={styles.header}>
           <Text style={styles.title}>Write your thoughts</Text>
         </View>
 
+        {/* ── Text Input ── */}
         <TextInput
           style={styles.textInput}
           placeholder="How are you feeling today?"
@@ -68,6 +118,7 @@ export default function JournalScreen({ navigation }) {
           textAlignVertical="top"
         />
 
+        {/* ── Save Button ── */}
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
           disabled={loading}
@@ -80,6 +131,7 @@ export default function JournalScreen({ navigation }) {
             <Text style={styles.buttonText}>Save Entry</Text>
           )}
         </TouchableOpacity>
+
       </View>
     </KeyboardAvoidingView>
   );
@@ -96,6 +148,34 @@ const styles = StyleSheet.create({
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
   },
+
+  // ── Toggle ──
+  toggleRow: {
+    flexDirection: "row",
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    padding: 3,
+    marginBottom: spacing.lg,
+    ...elevation.card,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    alignItems: "center",
+    borderRadius: radius.sm,
+  },
+  toggleButtonActive: {
+    backgroundColor: colors.primary,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.textSecondary,
+  },
+  toggleTextActive: {
+    color: "#fff",
+  },
+
   header: {
     marginBottom: spacing.lg,
   },
