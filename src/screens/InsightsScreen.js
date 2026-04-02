@@ -1,4 +1,3 @@
-// InsightsScreen.js
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -9,93 +8,147 @@ import {
   RefreshControl,
   TouchableOpacity,
   Animated,
-  Modal,
-  Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import api from "../service/api";
 
-import { colors } from "../theme/colors";
-import { spacing, radius, elevation } from "../theme/tokens";
-import { typography } from "../theme/typography";
+const WARM = {
+  bg: "#FDF6EC",
+  surface: "#FFFDF9",
+  accent: "#C17B4E",
+  accentSoft: "#F5E6D3",
+  textPrimary: "#2D1B0E",
+  textSecondary: "#7A5C44",
+  textMuted: "#B09880",
+  border: "#EDE0D0",
+  success: "#6A9E7F",
+  danger: "#C17070",
+  warning: "#E8A838",
+};
 
-const CRISIS_MESSAGE =
-  "It sounds like you've been carrying a lot lately. You don't have to work through this alone — consider reaching out to someone you trust.";
+const INSIGHT_CONFIG = {
+  baseline_shift: {
+    icon: "trending-up-outline",
+    color: "#6A9E7F",
+    bg: "#EEF7F2",
+    label: "Baseline Shift",
+  },
+  range_expanding: {
+    icon: "expand-outline",
+    color: "#C17B4E",
+    bg: "#F5E6D3",
+    label: "Range Expanding",
+  },
+  range_contracting: {
+    icon: "contract-outline",
+    color: "#7A8EC1",
+    bg: "#ECEEF7",
+    label: "Range Contracting",
+  },
+  trend_increasing: {
+    icon: "arrow-up-outline",
+    color: "#6A9E7F",
+    bg: "#EEF7F2",
+    label: "Trending Up",
+  },
+  trend_decreasing: {
+    icon: "arrow-down-outline",
+    color: "#C17070",
+    bg: "#F7EEEE",
+    label: "Trending Down",
+  },
+  high_diversity: {
+    icon: "color-palette-outline",
+    color: "#C17B4E",
+    bg: "#F5E6D3",
+    label: "High Diversity",
+  },
+  weekly_summary: {
+    icon: "calendar-outline",
+    color: "#7A5C44",
+    bg: "#F5F0EA",
+    label: "Weekly Summary",
+  },
+  insufficient_data: {
+    icon: "hourglass-outline",
+    color: "#B09880",
+    bg: "#F5F0EA",
+    label: "Getting Started",
+  },
+  crisis: {
+    icon: "heart-outline",
+    color: "#C17B4E",
+    bg: "#FDF0E6",
+    label: "Check In",
+  },
+  reflection_depth: {
+    icon: "chatbubble-ellipses-outline",
+    color: "#6A9E7F",
+    bg: "#EEF7F2",
+    label: "Reflection",
+  },
+};
 
-const InsightsScreen = () => {
+export default function InsightsScreen() {
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [dataSufficiency, setDataSufficiency] = useState(false);
-  const [crisisFlag, setCrisisFlag] = useState(false);
-  const [weeklyEntryCount, setWeeklyEntryCount] = useState(0);
-  const [showConfidenceTooltip, setShowConfidenceTooltip] = useState(false);
+  const [weeklyConfidence, setWeeklyConfidence] = useState(0);
 
-  const INSIGHTS_THRESHOLD = 3;
-
-  const [cardAnims] = useState(() =>
+  const fadeAnim = useState(new Animated.Value(0))[0];
+  const cardAnims = useState(() =>
     Array(10).fill(0).map(() => ({
       fade: new Animated.Value(0),
       slide: new Animated.Value(20),
     }))
-  );
-  const crisisAnim = useState(new Animated.Value(0))[0];
+  )[0];
 
   useEffect(() => {
     loadInsights();
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
-  const animateCards = (count, hasCrisis) => {
-    const animations = [];
-    if (hasCrisis) {
-      animations.push(
-        Animated.timing(crisisAnim, { toValue: 1, duration: 500, useNativeDriver: true })
-      );
-    }
-    for (let i = 0; i < Math.min(count, 10); i++) {
-      animations.push(
-        Animated.parallel([
-          Animated.timing(cardAnims[i].fade, { toValue: 1, duration: 400, useNativeDriver: true }),
-          Animated.timing(cardAnims[i].slide, { toValue: 0, duration: 400, useNativeDriver: true }),
-        ])
-      );
-    }
-    Animated.stagger(100, animations).start();
+  const animateCards = (count) => {
+    cardAnims.forEach(a => {
+      a.fade.setValue(0);
+      a.slide.setValue(20);
+    });
+    const animations = Array.from({ length: Math.min(count, 10) }, (_, i) =>
+      Animated.parallel([
+        Animated.timing(cardAnims[i].fade, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cardAnims[i].slide, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    Animated.stagger(80, animations).start();
   };
 
   const loadInsights = async () => {
     try {
       setError(null);
-
-      // Fetch insights + weekly entry count in parallel
-      const [insightsRes, historyRes] = await Promise.all([
-        api.get("/api/journal/insights/"),
-        api.get("/api/journal/history/"),
-      ]);
-
-      const data = insightsRes.data;
-
-      // Count entries from this week
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-      const weekCount = historyRes.data.filter(
-        e => new Date(e.created_at) >= oneWeekAgo
-      ).length;
-
+      const response = await api.get("/api/journal/insights/");
+      const data = response.data;
       setInsights(data.insights || []);
       setDataSufficiency(data.data_sufficiency);
-      setCrisisFlag(data.crisis_flag || false);
-      setWeeklyEntryCount(weekCount);
-
-      cardAnims.forEach(a => { a.fade.setValue(0); a.slide.setValue(20); });
-      crisisAnim.setValue(0);
-      setTimeout(() => animateCards((data.insights || []).length, data.crisis_flag || false), 100);
-
-    } catch (error) {
-      if (error.message === "Network Error" || !error.response) setError("network");
-      else if (error.response?.status >= 500) setError("server");
-      else setError("unknown");
+      setWeeklyConfidence(data.weekly_confidence || 0);
+      if (data.insights?.length > 0) {
+        setTimeout(() => animateCards(data.insights.length), 100);
+      }
+    } catch (err) {
+      setError(err.message === "Network Error" ? "network" : "unknown");
     } finally {
       setLoading(false);
     }
@@ -107,13 +160,11 @@ const InsightsScreen = () => {
     setRefreshing(false);
   };
 
-  const handleRetry = () => { setLoading(true); loadInsights(); };
-
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[typography.caption, styles.loadingText]}>Loading insights...</Text>
+        <ActivityIndicator size="large" color={WARM.accent} />
+        <Text style={styles.loadingText}>Reading your patterns...</Text>
       </View>
     );
   }
@@ -121,61 +172,16 @@ const InsightsScreen = () => {
   if (error) {
     return (
       <View style={styles.center}>
-        <Ionicons
-          name={error === "network" ? "cloud-offline-outline" : "alert-circle-outline"}
-          size={64} color={colors.textMuted}
-        />
-        <Text style={[typography.section, styles.errorTitle]}>
-          {error === "network" ? "No Internet Connection" :
-           error === "server" ? "Server Error" : "Something Went Wrong"}
-        </Text>
-        <Text style={[typography.body, styles.errorMessage]}>
-          {error === "network" ? "Check your connection and try again" :
-           error === "server" ? "Our servers are having issues. Try again in a moment" :
-           "We couldn't load your insights"}
-        </Text>
-        <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
-          <Ionicons name="refresh-outline" size={20} color="#fff" />
+        <Ionicons name="cloud-offline-outline" size={56} color={WARM.textMuted} />
+        <Text style={styles.errorTitle}>Couldn't load insights</Text>
+        <Text style={styles.errorMessage}>Check your connection and try again</Text>
+        <TouchableOpacity
+          style={styles.retryButton}
+          onPress={() => { setLoading(true); loadInsights(); }}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
-    );
-  }
-
-  // Empty state — show real progress count
-  if (!dataSufficiency || insights.length === 0) {
-    return (
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.center}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
-            colors={[colors.primary]} tintColor={colors.primary} />
-        }
-      >
-        <Ionicons name="bulb-outline" size={64} color={colors.textMuted} />
-        <Text style={[typography.section, styles.emptyTitle]}>No Insights Yet</Text>
-
-        {/* Real progress count */}
-        <Text style={[typography.body, styles.emptyMessage]}>
-          {weeklyEntryCount} of {INSIGHTS_THRESHOLD} entries this week
-        </Text>
-        <Text style={[typography.caption, styles.emptySubtext]}>
-          Journal {Math.max(0, INSIGHTS_THRESHOLD - weeklyEntryCount)} more time{INSIGHTS_THRESHOLD - weeklyEntryCount !== 1 ? "s" : ""} to unlock insights
-        </Text>
-
-        {/* Progress bar */}
-        <View style={styles.emptyProgressBg}>
-          <View style={[
-            styles.emptyProgressFill,
-            { width: `${Math.min((weeklyEntryCount / INSIGHTS_THRESHOLD) * 100, 100)}%` }
-          ]} />
-        </View>
-
-        <View style={styles.progressContainer}>
-          <Text style={[typography.caption, styles.progressText]}>Pull down to refresh</Text>
-        </View>
-      </ScrollView>
     );
   }
 
@@ -184,213 +190,295 @@ const InsightsScreen = () => {
       style={styles.container}
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh}
-          colors={[colors.primary]} tintColor={colors.primary} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[WARM.accent]}
+          tintColor={WARM.accent}
+        />
       }
+      showsVerticalScrollIndicator={false}
     >
-      {/* ── Crisis Card ── */}
-      {crisisFlag && (
-        <Animated.View style={[styles.crisisCard, { opacity: crisisAnim }]}>
-          <View style={styles.crisisHeader}>
-            <Ionicons name="heart-outline" size={20} color="#B8760A" />
-            <Text style={[typography.section, styles.crisisTitle]}>A Gentle Check-In</Text>
-          </View>
-          <Text style={[typography.body, styles.crisisMessage]}>{CRISIS_MESSAGE}</Text>
+      {/* Header */}
+      <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
+        <Text style={styles.screenTitle}>Your Insights</Text>
+        <Text style={styles.screenSubtitle}>
+          {dataSufficiency
+            ? "Patterns from this week's entries"
+            : "Keep journaling to unlock patterns"}
+        </Text>
+        <View style={styles.headerDivider} />
+      </Animated.View>
+
+      {/* Confidence badge */}
+      {dataSufficiency && weeklyConfidence > 0 && (
+        <Animated.View style={[styles.confidenceBanner, { opacity: fadeAnim }]}>
+          <Ionicons name="shield-checkmark-outline" size={14} color={WARM.success} />
+          <Text style={styles.confidenceText}>
+            {Math.round(weeklyConfidence * 100)}% confidence this week
+          </Text>
         </Animated.View>
       )}
 
-      {/* ── Insight Cards ── */}
-      {insights.map((insight, index) => (
-        <Animated.View
-          key={index}
-          style={[
-            styles.card,
-            {
-              opacity: cardAnims[index]?.fade || 1,
-              transform: [{ translateY: cardAnims[index]?.slide || 0 }],
-            },
-          ]}
-        >
-          <View style={styles.cardHeader}>
-            <Ionicons
-              name={
-                insight.type === "baseline_shift" ? "trending-up-outline" :
-                insight.type === "range_expanding" ? "resize-outline" :
-                insight.type === "range_contracting" ? "contract-outline" :
-                insight.type === "trend_increasing" ? "arrow-up-outline" :
-                insight.type === "trend_decreasing" ? "arrow-down-outline" :
-                insight.type === "reflect_divergence" ? "git-compare-outline" :
-                insight.type === "reflect_arc" ? "chatbubbles-outline" :
-                "analytics-outline"
-              }
-              size={20} color={colors.primary}
-            />
-            <Text style={[typography.section, styles.insightTitle]}>{insight.title}</Text>
+      {/* Empty state */}
+      {!dataSufficiency && (
+        <Animated.View style={[styles.emptyCard, { opacity: fadeAnim }]}>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="book-outline" size={32} color={WARM.accent} />
           </View>
-
-          <Text style={[typography.body, styles.insightMessage]}>{insight.message}</Text>
-
-          {/* ── Confidence badge with tooltip ── */}
-          {insight.confidence !== undefined && (
-            <View style={styles.confidenceRow}>
-              {insight.confidence < 0.6 && (
-                <View style={styles.confidenceBadge}>
-                  <Ionicons name="information-circle-outline" size={14} color={colors.textMuted} />
-                  <Text style={[typography.caption, styles.confidenceNote]}>
-                    Pattern still forming
-                  </Text>
-                </View>
-              )}
-              {/* Confidence tooltip trigger */}
-              <TouchableOpacity
-                style={styles.confidenceTrigger}
-                onPress={() => setShowConfidenceTooltip(true)}
-              >
-                <Text style={styles.confidencePercent}>
-                  {Math.round((insight.confidence || 0) * 100)}% confidence
-                </Text>
-                <Ionicons name="help-circle-outline" size={13} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-          )}
+          <Text style={styles.emptyTitle}>Not enough data yet</Text>
+          <Text style={styles.emptyMessage}>
+            Journal at least 3 times this week to unlock emotional patterns and insights.
+          </Text>
+          <View style={styles.emptyHint}>
+            <Ionicons name="arrow-down-outline" size={14} color={WARM.textMuted} />
+            <Text style={styles.emptyHintText}>Pull to refresh after journaling</Text>
+          </View>
         </Animated.View>
-      ))}
+      )}
 
-      <Text style={[typography.caption, styles.footer]}>
-        Insights update as you journal more
-      </Text>
+      {/* Insight cards */}
+      {insights.map((insight, index) => {
+        const config = INSIGHT_CONFIG[insight.type] || INSIGHT_CONFIG.weekly_summary;
+        const isCrisis = insight.type === "crisis";
 
-      {/* ── Confidence Tooltip Modal ── */}
-      <Modal
-        visible={showConfidenceTooltip}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowConfidenceTooltip(false)}
-      >
-        <Pressable
-          style={styles.modalOverlay}
-          onPress={() => setShowConfidenceTooltip(false)}
-        >
-          <View style={styles.tooltipBox}>
-            <Text style={[typography.section, styles.tooltipTitle]}>About Confidence</Text>
-            <Text style={[typography.body, styles.tooltipText]}>
-              Confidence reflects how certain the model is about your emotion detection. Higher confidence means the detected emotion was more clearly expressed in your writing.
+        return (
+          <Animated.View
+            key={index}
+            style={[
+              styles.card,
+              isCrisis && styles.crisisCard,
+              {
+                opacity: cardAnims[index]?.fade || 1,
+                transform: [{ translateY: cardAnims[index]?.slide || 0 }],
+              },
+            ]}
+          >
+            <View style={styles.cardHeader}>
+              <View style={[styles.typeBadge, { backgroundColor: config.bg }]}>
+                <Ionicons name={config.icon} size={14} color={config.color} />
+                <Text style={[styles.typeLabel, { color: config.color }]}>
+                  {config.label}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.insightTitle}>{insight.title}</Text>
+            <Text style={[styles.insightMessage, isCrisis && styles.crisisMessage]}>
+              {insight.message}
             </Text>
-            <TouchableOpacity
-              style={styles.tooltipClose}
-              onPress={() => setShowConfidenceTooltip(false)}
-            >
-              <Text style={styles.tooltipCloseText}>Got it</Text>
-            </TouchableOpacity>
-          </View>
-        </Pressable>
-      </Modal>
+
+            {insight.confidence > 0 && insight.confidence < 0.6 && (
+              <View style={styles.lowConfidence}>
+                <Ionicons name="information-circle-outline" size={13} color={WARM.textMuted} />
+                <Text style={styles.lowConfidenceText}>Pattern still forming</Text>
+              </View>
+            )}
+          </Animated.View>
+        );
+      })}
+
+      {dataSufficiency && insights.length > 0 && (
+        <Text style={styles.footer}>
+          Insights refresh as you add new entries
+        </Text>
+      )}
     </ScrollView>
   );
-};
-
-export default InsightsScreen;
+}
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
-  content: { padding: spacing.lg, paddingTop: spacing.xl },
+  container: {
+    flex: 1,
+    backgroundColor: WARM.bg,
+  },
+  content: {
+    padding: 24,
+    paddingTop: 48,
+    paddingBottom: 48,
+  },
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: spacing.xl,
+    backgroundColor: WARM.bg,
+    padding: 32,
   },
-  loadingText: { color: colors.textSecondary, marginTop: spacing.md },
-  errorTitle: { color: colors.textPrimary, marginTop: spacing.lg, textAlign: "center" },
-  errorMessage: {
-    color: colors.textSecondary, marginTop: spacing.sm,
-    textAlign: "center", paddingHorizontal: spacing.xl,
+  header: {
+    marginBottom: 24,
   },
-  retryButton: {
-    flexDirection: "row", alignItems: "center", gap: spacing.sm,
-    backgroundColor: colors.primary, paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl, borderRadius: radius.md, marginTop: spacing.xl,
+  screenTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: WARM.textPrimary,
+    letterSpacing: -0.5,
+    marginBottom: 4,
   },
-  retryText: { color: "#fff", fontWeight: "600", fontSize: typography.body.fontSize },
-  emptyTitle: { color: colors.textPrimary, marginTop: spacing.lg, textAlign: "center" },
-  emptyMessage: {
-    color: colors.primary, marginTop: spacing.md,
-    textAlign: "center", fontWeight: "600", fontSize: 16,
+  screenSubtitle: {
+    fontSize: 14,
+    color: WARM.textMuted,
+    marginBottom: 20,
   },
-  emptySubtext: {
-    color: colors.textSecondary, marginTop: spacing.xs,
+  headerDivider: {
+    height: 2,
+    width: 40,
+    backgroundColor: WARM.accent,
+    borderRadius: 2,
+  },
+  confidenceBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#EEF7F2",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: "flex-start",
+    marginBottom: 20,
+  },
+  confidenceText: {
+    fontSize: 12,
+    color: WARM.success,
+    fontWeight: "600",
+  },
+  emptyCard: {
+    backgroundColor: WARM.surface,
+    borderRadius: 20,
+    padding: 32,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: WARM.border,
+    borderStyle: "dashed",
+  },
+  emptyIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: WARM.accentSoft,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: WARM.textPrimary,
+    marginBottom: 8,
     textAlign: "center",
   },
-  emptyProgressBg: {
-    width: "60%", height: 6, backgroundColor: colors.border,
-    borderRadius: 3, overflow: "hidden", marginTop: spacing.lg,
+  emptyMessage: {
+    fontSize: 14,
+    color: WARM.textSecondary,
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 20,
   },
-  emptyProgressFill: {
-    height: 6, backgroundColor: colors.primary, borderRadius: 3,
+  emptyHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
-  progressContainer: {
-    marginTop: spacing.xl, padding: spacing.md,
-    backgroundColor: colors.surface, borderRadius: radius.md,
+  emptyHintText: {
+    fontSize: 12,
+    color: WARM.textMuted,
   },
-  progressText: { color: colors.textMuted },
-
-  // ── Crisis Card ──
-  crisisCard: {
-    backgroundColor: "#FFF8EE", borderRadius: radius.lg,
-    padding: spacing.lg, marginBottom: spacing.lg,
-    borderLeftWidth: 4, borderLeftColor: "#F5A623", elevation: 2,
-  },
-  crisisHeader: {
-    flexDirection: "row", alignItems: "center",
-    gap: spacing.sm, marginBottom: spacing.sm,
-  },
-  crisisTitle: { color: "#B8760A" },
-  crisisMessage: { color: "#7A5200", lineHeight: 22 },
-
-  // ── Insight Cards ──
   card: {
-    backgroundColor: colors.surface, borderRadius: radius.lg,
-    padding: spacing.lg, marginBottom: spacing.lg, ...elevation.card,
+    backgroundColor: WARM.surface,
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: WARM.border,
+    shadowColor: "#C17B4E",
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  crisisCard: {
+    borderColor: WARM.accent + "60",
+    backgroundColor: "#FFFBF7",
   },
   cardHeader: {
-    flexDirection: "row", alignItems: "center",
-    gap: spacing.sm, marginBottom: spacing.sm,
+    marginBottom: 12,
   },
-  insightTitle: { color: colors.textPrimary, flex: 1 },
-  insightMessage: { color: colors.textSecondary, lineHeight: 22 },
-
-  // ── Confidence ──
-  confidenceRow: {
-    flexDirection: "row", alignItems: "center",
-    justifyContent: "space-between", marginTop: spacing.sm,
-    paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border,
+  typeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    alignSelf: "flex-start",
   },
-  confidenceBadge: { flexDirection: "row", alignItems: "center", gap: 4 },
-  confidenceNote: { color: colors.textMuted },
-  confidenceTrigger: {
-    flexDirection: "row", alignItems: "center", gap: 4, marginLeft: "auto",
+  typeLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
   },
-  confidencePercent: { color: colors.textMuted, fontSize: 12 },
-
+  insightTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: WARM.textPrimary,
+    marginBottom: 8,
+    letterSpacing: -0.2,
+  },
+  insightMessage: {
+    fontSize: 14,
+    color: WARM.textSecondary,
+    lineHeight: 22,
+  },
+  crisisMessage: {
+    color: WARM.textPrimary,
+    lineHeight: 24,
+  },
+  lowConfidence: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: WARM.border,
+  },
+  lowConfidenceText: {
+    fontSize: 12,
+    color: WARM.textMuted,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: WARM.textMuted,
+    marginTop: 12,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: WARM.textPrimary,
+    marginTop: 16,
+    textAlign: "center",
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: WARM.textSecondary,
+    marginTop: 8,
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: WARM.accent,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    marginTop: 20,
+  },
+  retryText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
   footer: {
-    color: colors.textMuted, textAlign: "center",
-    marginTop: spacing.md, marginBottom: spacing.xl,
+    fontSize: 12,
+    color: WARM.textMuted,
+    textAlign: "center",
+    marginTop: 8,
   },
-
-  // ── Tooltip Modal ──
-  modalOverlay: {
-    flex: 1, backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "center", alignItems: "center", padding: spacing.xl,
-  },
-  tooltipBox: {
-    backgroundColor: colors.surface, borderRadius: radius.lg,
-    padding: spacing.xl, width: "100%", ...elevation.card,
-  },
-  tooltipTitle: { color: colors.textPrimary, marginBottom: spacing.md },
-  tooltipText: { color: colors.textSecondary, lineHeight: 22 },
-  tooltipClose: {
-    marginTop: spacing.lg, backgroundColor: colors.primary,
-    paddingVertical: spacing.sm, borderRadius: radius.md, alignItems: "center",
-  },
-  tooltipCloseText: { color: "#fff", fontWeight: "600" },
 });

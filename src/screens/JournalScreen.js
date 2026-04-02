@@ -1,5 +1,4 @@
-// JournalScreen.js
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -10,65 +9,76 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ScrollView,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import api from "../service/api";
-import { colors } from "../theme/colors";
-import { spacing, radius, elevation } from "../theme/tokens";
-import { typography } from "../theme/typography";
-import { getGreeting } from "../utils/intimacy";
+import ReflectionPrompt from "../components/ReflectionPrompt";
+
+const WARM = {
+  bg: "#FDF6EC",
+  surface: "#FFFDF9",
+  accent: "#C17B4E",
+  accentSoft: "#F5E6D3",
+  textPrimary: "#2D1B0E",
+  textSecondary: "#7A5C44",
+  textMuted: "#B09880",
+  border: "#EDE0D0",
+};
+
+const MAX_CHARS = 2000;
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+function getFormattedDate() {
+  return new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
 
 export default function JournalScreen({ navigation }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [entryCount, setEntryCount] = useState(0);
-  const [activeMode, setActiveMode] = useState("journal");
+  const [showInlineReflection, setShowInlineReflection] = useState(false);
 
-  useEffect(() => {
-    fetchEntryCount();
-  }, []);
-
-  const fetchEntryCount = async () => {
-    try {
-      const response = await api.get("/api/journal/history/");
-      setEntryCount(response.data.length);
-    } catch (_) {
-      // non-critical, silently fail
-    }
-  };
-
-  const isFirstTimeUser = entryCount === 0;
-  const greeting = getGreeting(entryCount);
-
-  const handleModeSwitch = (mode) => {
-    if (mode === "reflect") {
-      navigation.navigate("Reflect");
-    } else {
-      setActiveMode("journal");
-    }
-  };
+  const charsLeft = MAX_CHARS - text.length;
+  const isNearLimit = charsLeft < 200;
+  const isEmpty = !text.trim();
 
   const handleSave = async () => {
-    if (!text.trim()) {
-      Alert.alert("Empty Entry", "Please write something before saving");
+    if (isEmpty) {
+      Alert.alert("Empty Entry", "Write something before saving.");
       return;
     }
-
     setLoading(true);
     try {
       const response = await api.post("/api/journal/create/", {
         text: text.trim(),
       });
 
-      const { contextual_message, has_insights, crisis_flag } = response.data;
+      const {
+        contextual_message,
+        has_insights,
+        dominant_emotion,
+        journal_id,
+      } = response.data;
+
       setText("");
-      setEntryCount(prev => prev + 1);
+      setShowInlineReflection(false);
 
       navigation.navigate("EmotionFeedback", {
         contextual_message,
         has_insights,
-        crisis_flag: crisis_flag || false,
-        entry_count: entryCount + 1,
+        dominant_emotion,
+        journal_id,
+        journal_text: text.trim(),
       });
     } catch (error) {
       Alert.alert("Error", "Failed to save entry. Please try again.");
@@ -82,71 +92,84 @@ export default function JournalScreen({ navigation }) {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <View style={styles.content}>
-
-        {/* ── Mode Toggle ── */}
-        <View style={styles.toggleRow}>
-          <TouchableOpacity
-            style={[styles.toggleButton, activeMode === "journal" && styles.toggleButtonActive]}
-            onPress={() => setActiveMode("journal")}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.toggleText, activeMode === "journal" && styles.toggleTextActive]}>
-              Journal
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleButton, activeMode === "reflect" && styles.toggleButtonActive]}
-            onPress={() => handleModeSwitch("reflect")}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.toggleText, activeMode === "reflect" && styles.toggleTextActive]}>
-              Reflect
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Greeting ── */}
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.greeting}>{greeting}</Text>
+          <Text style={styles.greeting}>{getGreeting()}</Text>
+          <Text style={styles.date}>{getFormattedDate()}</Text>
+          <View style={styles.divider} />
         </View>
 
-        {/* ── First-time hint (disappears after first entry) ── */}
-        {isFirstTimeUser && (
-          <View style={styles.hintBox}>
-            <Ionicons name="leaf-outline" size={16} color="#7A5200" />
-            <Text style={styles.hintText}>
-              Write freely — there's no right way to journal. Try describing your day, a feeling, or something on your mind.
-            </Text>
+        {/* Writing area */}
+        <View style={styles.card}>
+          <View style={styles.ruledLines}>
+            {[...Array(12)].map((_, i) => (
+              <View key={i} style={styles.ruledLine} />
+            ))}
           </View>
+
+          <TextInput
+            style={styles.textInput}
+            placeholder="What's on your mind today?"
+            placeholderTextColor={WARM.textMuted}
+            value={text}
+            onChangeText={(t) => {
+              if (t.length <= MAX_CHARS) setText(t);
+            }}
+            multiline
+            textAlignVertical="top"
+          />
+        </View>
+
+        {/* Secondary reflection entry */}
+        {!showInlineReflection && text.trim().length > 20 && (
+          <TouchableOpacity
+            onPress={() => setShowInlineReflection(true)}
+            style={styles.askMeLink}
+          >
+            <Text style={styles.askMeLinkText}>Ask me something instead</Text>
+          </TouchableOpacity>
         )}
 
-        {/* ── Text Input ── */}
-        <TextInput
-          style={styles.textInput}
-          placeholder="How are you feeling today?"
-          placeholderTextColor={colors.textMuted}
-          value={text}
-          onChangeText={setText}
-          multiline
-          textAlignVertical="top"
-        />
+        {/* Inline reflection */}
+        {showInlineReflection && (
+          <ReflectionPrompt
+            journalText={text.trim()}
+            dominantEmotion="neutral"
+            journalId={null}
+            onSave={() => {}}
+            onDismiss={() => setShowInlineReflection(false)}
+          />
+        )}
 
-        {/* ── Save Button ── */}
+        {/* Character counter */}
+        <Text
+          style={[styles.charCount, isNearLimit && styles.charCountWarning]}
+        >
+          {charsLeft} characters remaining
+        </Text>
+
+        {/* Save button */}
         <TouchableOpacity
-          style={[styles.button, loading && styles.buttonDisabled]}
-          disabled={loading}
+          style={[styles.button, isEmpty && styles.buttonDisabled]}
+          disabled={loading || isEmpty}
           onPress={handleSave}
           activeOpacity={0.85}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Save Entry</Text>
+            <>
+              <Text style={styles.buttonText}>Save Entry</Text>
+              <Text style={styles.buttonSubtext}>Your thoughts, preserved</Text>
+            </>
           )}
         </TouchableOpacity>
-
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -154,96 +177,119 @@ export default function JournalScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: WARM.bg,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
+  scroll: {
+    padding: 24,
+    paddingTop: 48,
+    paddingBottom: 48,
   },
-
-  // ── Toggle ──
-  toggleRow: {
-    flexDirection: "row",
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: 3,
-    marginBottom: spacing.lg,
-    ...elevation.card,
-  },
-  toggleButton: {
-    flex: 1,
-    paddingVertical: spacing.sm,
-    alignItems: "center",
-    borderRadius: radius.sm,
-  },
-  toggleButtonActive: {
-    backgroundColor: colors.primary,
-  },
-  toggleText: {
-    fontSize: 14,
-    fontWeight: "500",
-    color: colors.textSecondary,
-  },
-  toggleTextActive: {
-    color: "#fff",
-  },
-
-  // ── Greeting ──
   header: {
-    marginBottom: spacing.md,
+    marginBottom: 28,
   },
   greeting: {
-    ...typography.title,
-    color: colors.textPrimary,
+    fontSize: 28,
+    fontWeight: "700",
+    color: WARM.textPrimary,
+    letterSpacing: -0.5,
+    marginBottom: 4,
   },
-
-  // ── First-time hint ──
-  hintBox: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.sm,
-    backgroundColor: "#FFF8EE",
-    borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.md,
-    borderLeftWidth: 3,
-    borderLeftColor: "#F5A623",
+  date: {
+    fontSize: 14,
+    color: WARM.textMuted,
+    fontWeight: "400",
+    letterSpacing: 0.3,
+    marginBottom: 20,
   },
-  hintText: {
-    flex: 1,
-    fontSize: 13,
-    color: "#7A5200",
-    lineHeight: 19,
+  divider: {
+    height: 2,
+    width: 40,
+    backgroundColor: WARM.accent,
+    borderRadius: 2,
   },
-
+  card: {
+    backgroundColor: WARM.surface,
+    borderRadius: 16,
+    padding: 20,
+    minHeight: 320,
+    borderWidth: 1,
+    borderColor: WARM.border,
+    shadowColor: "#C17B4E",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+    position: "relative",
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  ruledLines: {
+    position: "absolute",
+    top: 20,
+    left: 20,
+    right: 20,
+    bottom: 20,
+    justifyContent: "space-between",
+  },
+  ruledLine: {
+    height: 1,
+    backgroundColor: WARM.border,
+    opacity: 0.6,
+  },
   textInput: {
     flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.lg,
     fontSize: 16,
-    color: colors.textPrimary,
-    textAlignVertical: "top",
-    ...elevation.card,
-    marginBottom: spacing.lg,
-    lineHeight: 24,
-    minHeight: 200,
+    color: WARM.textPrimary,
+    lineHeight: 26,
+    minHeight: 280,
+    zIndex: 1,
+    fontWeight: "400",
+  },
+  askMeLink: {
+    alignSelf: "flex-end",
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginBottom: 4,
+  },
+  askMeLinkText: {
+    fontSize: 12,
+    color: WARM.textMuted,
+    fontStyle: "italic",
+  },
+  charCount: {
+    fontSize: 12,
+    color: WARM.textMuted,
+    textAlign: "right",
+    marginBottom: 24,
+  },
+  charCountWarning: {
+    color: WARM.accent,
+    fontWeight: "600",
   },
   button: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.lg,
-    borderRadius: radius.md,
+    backgroundColor: WARM.accent,
+    paddingVertical: 18,
+    borderRadius: 14,
     alignItems: "center",
-    ...elevation.card,
+    shadowColor: WARM.accent,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   buttonDisabled: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
   buttonText: {
     color: "#fff",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 16,
+    letterSpacing: 0.3,
+  },
+  buttonSubtext: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 11,
+    marginTop: 2,
+    letterSpacing: 0.5,
   },
 });
