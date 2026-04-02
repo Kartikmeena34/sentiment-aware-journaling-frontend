@@ -1,5 +1,5 @@
 // JournalScreen.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,15 +11,34 @@ import {
   Platform,
   Alert,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import api from "../service/api";
 import { colors } from "../theme/colors";
 import { spacing, radius, elevation } from "../theme/tokens";
 import { typography } from "../theme/typography";
+import { getGreeting } from "../utils/intimacy";
 
 export default function JournalScreen({ navigation }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [activeMode, setActiveMode] = useState("journal"); // "journal" | "reflect"
+  const [entryCount, setEntryCount] = useState(0);
+  const [activeMode, setActiveMode] = useState("journal");
+
+  useEffect(() => {
+    fetchEntryCount();
+  }, []);
+
+  const fetchEntryCount = async () => {
+    try {
+      const response = await api.get("/api/journal/history/");
+      setEntryCount(response.data.length);
+    } catch (_) {
+      // non-critical, silently fail
+    }
+  };
+
+  const isFirstTimeUser = entryCount === 0;
+  const greeting = getGreeting(entryCount);
 
   const handleModeSwitch = (mode) => {
     if (mode === "reflect") {
@@ -43,11 +62,13 @@ export default function JournalScreen({ navigation }) {
 
       const { contextual_message, has_insights, crisis_flag } = response.data;
       setText("");
+      setEntryCount(prev => prev + 1);
 
       navigation.navigate("EmotionFeedback", {
         contextual_message,
         has_insights,
         crisis_flag: crisis_flag || false,
+        entry_count: entryCount + 1,
       });
     } catch (error) {
       Alert.alert("Error", "Failed to save entry. Please try again.");
@@ -66,46 +87,39 @@ export default function JournalScreen({ navigation }) {
         {/* ── Mode Toggle ── */}
         <View style={styles.toggleRow}>
           <TouchableOpacity
-            style={[
-              styles.toggleButton,
-              activeMode === "journal" && styles.toggleButtonActive,
-            ]}
+            style={[styles.toggleButton, activeMode === "journal" && styles.toggleButtonActive]}
             onPress={() => setActiveMode("journal")}
             activeOpacity={0.8}
           >
-            <Text
-              style={[
-                styles.toggleText,
-                activeMode === "journal" && styles.toggleTextActive,
-              ]}
-            >
+            <Text style={[styles.toggleText, activeMode === "journal" && styles.toggleTextActive]}>
               Journal
             </Text>
           </TouchableOpacity>
-
           <TouchableOpacity
-            style={[
-              styles.toggleButton,
-              activeMode === "reflect" && styles.toggleButtonActive,
-            ]}
+            style={[styles.toggleButton, activeMode === "reflect" && styles.toggleButtonActive]}
             onPress={() => handleModeSwitch("reflect")}
             activeOpacity={0.8}
           >
-            <Text
-              style={[
-                styles.toggleText,
-                activeMode === "reflect" && styles.toggleTextActive,
-              ]}
-            >
+            <Text style={[styles.toggleText, activeMode === "reflect" && styles.toggleTextActive]}>
               Reflect
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* ── Header ── */}
+        {/* ── Greeting ── */}
         <View style={styles.header}>
-          <Text style={styles.title}>Write your thoughts</Text>
+          <Text style={styles.greeting}>{greeting}</Text>
         </View>
+
+        {/* ── First-time hint (disappears after first entry) ── */}
+        {isFirstTimeUser && (
+          <View style={styles.hintBox}>
+            <Ionicons name="leaf-outline" size={16} color="#7A5200" />
+            <Text style={styles.hintText}>
+              Write freely — there's no right way to journal. Try describing your day, a feeling, or something on your mind.
+            </Text>
+          </View>
+        )}
 
         {/* ── Text Input ── */}
         <TextInput
@@ -176,13 +190,34 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
 
+  // ── Greeting ──
   header: {
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
-  title: {
+  greeting: {
     ...typography.title,
     color: colors.textPrimary,
   },
+
+  // ── First-time hint ──
+  hintBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    backgroundColor: "#FFF8EE",
+    borderRadius: radius.md,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    borderLeftWidth: 3,
+    borderLeftColor: "#F5A623",
+  },
+  hintText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#7A5200",
+    lineHeight: 19,
+  },
+
   textInput: {
     flex: 1,
     backgroundColor: colors.surface,

@@ -61,7 +61,7 @@ export default function AppNavigator() {
           <Stack.Screen name="Main" component={MainTabs} />
           <Stack.Screen name="EmotionFeedback" component={EmotionFeedbackScreen} />
           <Stack.Screen name="EntryDetail" component={EntryDetailScreen} />
-          <Stack.Screen name="Reflect" component={ReflectScreen} />  {/* NEW */}
+          <Stack.Screen name="Reflect" component={ReflectScreen} />
         </>
       ) : (
         <>

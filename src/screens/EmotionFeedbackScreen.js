@@ -12,28 +12,42 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors } from "../theme/colors";
 import { spacing, radius, elevation } from "../theme/tokens";
 import { typography } from "../theme/typography";
+import { getFeedbackHint } from "../utils/intimacy";
 
 const CRISIS_MESSAGE =
   "It sounds like you've been carrying a lot lately. You don't have to work through this alone — consider reaching out to someone you trust.";
 
+// How many entries needed before insights unlock
+const INSIGHTS_THRESHOLD = 3;
+
 export default function EmotionFeedbackScreen({ route, navigation }) {
-  const { contextual_message, has_insights, crisis_flag } = route.params;
+  const {
+    contextual_message,
+    has_insights,
+    crisis_flag,
+    entry_count = 0,
+    from_reflect = false,
+  } = route.params;
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const crisisAnim = useRef(new Animated.Value(0)).current;
 
+  const hintText = getFeedbackHint(entry_count, has_insights);
+
+  // Progress toward insights unlock (only shown when not yet unlocked)
+  const showProgress = !has_insights && entry_count < INSIGHTS_THRESHOLD;
+  const progressLabel = `Entry ${Math.min(entry_count, INSIGHTS_THRESHOLD)} of ${INSIGHTS_THRESHOLD}`;
+
   useEffect(() => {
     Animated.sequence([
-      // Icon scale first
       Animated.spring(scaleAnim, {
         toValue: 1,
         tension: 50,
         friction: 7,
         useNativeDriver: true,
       }),
-      // Card fade + slide
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -46,16 +60,12 @@ export default function EmotionFeedbackScreen({ route, navigation }) {
           useNativeDriver: true,
         }),
       ]),
-      // Crisis card fades in last if present
       ...(crisis_flag
-        ? [
-            Animated.timing(crisisAnim, {
-              toValue: 1,
-              duration: 500,
-              delay: 200,
-              useNativeDriver: true,
-            }),
-          ]
+        ? [Animated.timing(crisisAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          })]
         : []),
     ]).start();
   }, []);
@@ -63,7 +73,8 @@ export default function EmotionFeedbackScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
-        {/* Success Icon */}
+
+        {/* ── Success Icon ── */}
         <Animated.View
           style={[styles.iconContainer, { transform: [{ scale: scaleAnim }] }]}
         >
@@ -72,7 +83,7 @@ export default function EmotionFeedbackScreen({ route, navigation }) {
           </View>
         </Animated.View>
 
-        {/* Main Card */}
+        {/* ── Main Card ── */}
         <Animated.View
           style={[
             styles.card,
@@ -80,16 +91,12 @@ export default function EmotionFeedbackScreen({ route, navigation }) {
           ]}
         >
           <Text style={[typography.title, styles.confirmation]}>
-            Entry Saved
+            {from_reflect ? "Reflection Saved" : "Entry Saved"}
           </Text>
 
           {contextual_message && (
             <View style={styles.contextualContainer}>
-              <Ionicons
-                name="information-circle-outline"
-                size={20}
-                color={colors.primary}
-              />
+              <Ionicons name="information-circle-outline" size={20} color={colors.primary} />
               <Text style={[typography.body, styles.contextual]}>
                 {contextual_message}
               </Text>
@@ -98,24 +105,39 @@ export default function EmotionFeedbackScreen({ route, navigation }) {
 
           <View style={styles.divider} />
 
-          {has_insights ? (
-            <View style={styles.hintContainer}>
-              <Ionicons name="bulb-outline" size={18} color={colors.textSecondary} />
-              <Text style={[typography.caption, styles.hint]}>
-                Check your Insights tab to discover patterns
-              </Text>
+          {/* ── Progress indicator or hint ── */}
+          {showProgress ? (
+            <View style={styles.progressContainer}>
+              <View style={styles.progressHeader}>
+                <Ionicons name="hourglass-outline" size={16} color={colors.textSecondary} />
+                <Text style={[typography.caption, styles.progressLabel]}>
+                  {progressLabel} — journal more to unlock insights
+                </Text>
+              </View>
+              <View style={styles.progressBarBg}>
+                <View
+                  style={[
+                    styles.progressBarFill,
+                    { width: `${(entry_count / INSIGHTS_THRESHOLD) * 100}%` },
+                  ]}
+                />
+              </View>
             </View>
           ) : (
             <View style={styles.hintContainer}>
-              <Ionicons name="hourglass-outline" size={18} color={colors.textSecondary} />
+              <Ionicons
+                name={has_insights ? "bulb-outline" : "hourglass-outline"}
+                size={18}
+                color={colors.textSecondary}
+              />
               <Text style={[typography.caption, styles.hint]}>
-                Keep journaling to unlock insights
+                {hintText}
               </Text>
             </View>
           )}
         </Animated.View>
 
-        {/* Crisis Card — only shown when flag is true */}
+        {/* ── Crisis Card ── */}
         {crisis_flag && (
           <Animated.View style={[styles.crisisCard, { opacity: crisisAnim }]}>
             <View style={styles.crisisHeader}>
@@ -131,7 +153,7 @@ export default function EmotionFeedbackScreen({ route, navigation }) {
         )}
       </View>
 
-      {/* Action Button */}
+      {/* ── Done Button ── */}
       <Animated.View style={{ opacity: fadeAnim }}>
         <TouchableOpacity
           style={styles.button}
@@ -158,9 +180,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.lg,
   },
-  iconContainer: {
-    marginBottom: spacing.sm,
-  },
+  iconContainer: { marginBottom: spacing.sm },
   iconCircle: {
     width: 80,
     height: 80,
@@ -210,6 +230,31 @@ const styles = StyleSheet.create({
   hint: {
     color: colors.textSecondary,
     textAlign: "center",
+    flex: 1,
+  },
+
+  // ── Progress ──
+  progressContainer: { width: "100%" },
+  progressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  progressLabel: {
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  progressBarBg: {
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: 6,
+    backgroundColor: colors.primary,
+    borderRadius: 3,
   },
 
   // ── Crisis Card ──
@@ -220,9 +265,6 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     borderLeftWidth: 4,
     borderLeftColor: "#F5A623",
-    shadowColor: "#F5A623",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
     elevation: 2,
   },
   crisisHeader: {
@@ -231,13 +273,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     marginBottom: spacing.sm,
   },
-  crisisTitle: {
-    color: "#B8760A",
-  },
-  crisisMessage: {
-    color: "#7A5200",
-    lineHeight: 22,
-  },
+  crisisTitle: { color: "#B8760A" },
+  crisisMessage: { color: "#7A5200", lineHeight: 22 },
 
   button: {
     backgroundColor: colors.primary,

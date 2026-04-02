@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
   },
   headerBand: {
     backgroundColor: WARM.accent,
-    paddingTop: 80,
+    paddingTop: 100,
     paddingBottom: 48,
     paddingHorizontal: 28,
   },

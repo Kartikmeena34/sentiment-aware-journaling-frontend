@@ -39,17 +39,21 @@ const ProfileScreen = ({ navigation }) => {
 
   const loadHistory = async () => {
     try {
-      const [journalRes, reflectRes] = await Promise.all([
-        api.get("/api/journal/history/"),
-        api.get("/api/reflect/history/"),
-      ]);
+      const journalRes = await api.get("/api/journal/history/");
       setJournals(journalRes.data);
+    } catch (error) {
+      console.log("Failed to load journal history:", error.message);
+    }
+
+    try {
+      const reflectRes = await api.get("/api/reflect/history/");
       setReflects(reflectRes.data);
     } catch (error) {
-      console.log("Failed to load history:", error.response?.data || error.message);
-    } finally {
-      setLoading(false);
+      console.log("Failed to load reflect history:", error.message);
+      // reflect endpoint may not be deployed yet — silently skip
     }
+
+    setLoading(false);
   };
 
   const onRefresh = async () => {

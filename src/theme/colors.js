@@ -3,15 +3,16 @@ export const colors = {
   surface: "#FFFDF9",
 
   textPrimary: "#2D1B0E",
-  textSecondary: "#7A5C44",
-  textMuted: "#B09880",
+  textSecondary: "#6B5744",
+  textMuted: "#A89080",
 
-  primary: "#C17B4E",
-  primarySoft: "#F5E6D3",
+  primary: "#C17B4E",      // warm amber — used by existing screens
+  accent: "#C17B4E",       // alias — used by new screens
+  primarySoft: "#F5E6D8",  // soft amber background
 
-  border: "#EDE0D0",
+  border: "#E8D5C0",
   divider: "#F0E4D4",
 
-  success: "#6A9E7F",
-  danger: "#C17070",
+  success: "#3FA796",
+  danger: "#C0604A",
 };
