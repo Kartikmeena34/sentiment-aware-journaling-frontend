@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -8,8 +8,6 @@ import {
   ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import api from "../service/api";
-import ReflectionPrompt from "../components/ReflectionPrompt";
 
 const WARM = {
   bg: "#FDF6EC",
@@ -21,7 +19,6 @@ const WARM = {
   textMuted: "#B09880",
   border: "#EDE0D0",
   success: "#6A9E7F",
-  warning: "#C17B4E",
 };
 
 const getNudgeMessage = (emotion) => {
@@ -49,11 +46,7 @@ export default function EmotionFeedbackScreen({ route, navigation }) {
   const slideAnim = useRef(new Animated.Value(24)).current;
   const buttonFade = useRef(new Animated.Value(0)).current;
 
-  const [showReflection, setShowReflection] = useState(false);
-  const [reflectionDismissed, setReflectionDismissed] = useState(false);
-
   const nudgeMessage = getNudgeMessage(dominant_emotion);
-  const showNudge = nudgeMessage && !showReflection && !reflectionDismissed;
 
   useEffect(() => {
     Animated.sequence([
@@ -84,11 +77,11 @@ export default function EmotionFeedbackScreen({ route, navigation }) {
     ]).start();
   }, []);
 
-  const handleSaveReflection = async (question, answer) => {
-    await api.post("/api/journal/reflect/save/", {
+  const handleGoDeeper = () => {
+    navigation.navigate("GoDeeper", {
+      journal_text,
+      dominant_emotion,
       journal_id,
-      question,
-      answer,
     });
   };
 
@@ -157,13 +150,13 @@ export default function EmotionFeedbackScreen({ route, navigation }) {
           )}
         </View>
 
-        {/* Nudge */}
-        {showNudge && (
+        {/* Nudge — navigates to GoDeeper */}
+        {nudgeMessage && (
           <>
             <View style={styles.divider} />
             <TouchableOpacity
               style={styles.nudgeContainer}
-              onPress={() => setShowReflection(true)}
+              onPress={handleGoDeeper}
               activeOpacity={0.85}
             >
               <Text style={styles.nudgeText}>{nudgeMessage}</Text>
@@ -171,30 +164,27 @@ export default function EmotionFeedbackScreen({ route, navigation }) {
             </TouchableOpacity>
           </>
         )}
-
-        {/* Inline reflection */}
-        {showReflection && (
-          <ReflectionPrompt
-            journalText={journal_text}
-            dominantEmotion={dominant_emotion}
-            journalId={journal_id}
-            onSave={handleSaveReflection}
-            onDismiss={() => {
-              setShowReflection(false);
-              setReflectionDismissed(true);
-            }}
-          />
-        )}
       </Animated.View>
 
-      {/* Done button */}
+      {/* Buttons */}
       <Animated.View style={[styles.buttonContainer, { opacity: buttonFade }]}>
+        {nudgeMessage && (
+          <TouchableOpacity
+            style={styles.deeperButton}
+            onPress={handleGoDeeper}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="chatbubble-ellipses-outline" size={18} color={WARM.accent} />
+            <Text style={styles.deeperButtonText}>Go deeper</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity
-          style={styles.button}
+          style={styles.doneButton}
           onPress={() => navigation.navigate("Main", { screen: "Journal" })}
           activeOpacity={0.85}
         >
-          <Text style={styles.buttonText}>Done</Text>
+          <Text style={styles.doneButtonText}>Done</Text>
         </TouchableOpacity>
       </Animated.View>
     </ScrollView>
@@ -315,8 +305,25 @@ const styles = StyleSheet.create({
   buttonContainer: {
     paddingTop: 8,
     paddingBottom: 16,
+    gap: 12,
   },
-  button: {
+  deeperButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: WARM.accentSoft,
+    paddingVertical: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: WARM.accent + "40",
+  },
+  deeperButtonText: {
+    color: WARM.accent,
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  doneButton: {
     backgroundColor: WARM.accent,
     paddingVertical: 18,
     borderRadius: 14,
@@ -327,7 +334,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
   },
-  buttonText: {
+  doneButtonText: {
     color: "#fff",
     fontWeight: "700",
     fontSize: 16,
