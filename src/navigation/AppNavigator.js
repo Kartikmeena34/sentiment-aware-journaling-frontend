@@ -1,4 +1,3 @@
-// AppNavigator.js
 import React, { useContext } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -14,7 +13,8 @@ import InsightsScreen from "../screens/InsightsScreen";
 import ProfileScreen from "../screens/ProfileScreen";
 import EmotionFeedbackScreen from "../screens/EmotionFeedbackScreen";
 import EntryDetailScreen from "../screens/EntryDetailScreen";
-import ReflectScreen from "../screens/ReflectScreen";   // NEW
+import ReflectScreen from "../screens/ReflectScreen";
+import GoDeepScreen from "../screens/GoDeepScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -24,7 +24,7 @@ function MainTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: "#4A90E2",
+        tabBarActiveTintColor: "#C17B4E",
         tabBarIcon: ({ color }) => {
           let icon;
           if (route.name === "Journal") icon = "book-outline";
@@ -62,6 +62,7 @@ export default function AppNavigator() {
           <Stack.Screen name="EmotionFeedback" component={EmotionFeedbackScreen} />
           <Stack.Screen name="EntryDetail" component={EntryDetailScreen} />
           <Stack.Screen name="Reflect" component={ReflectScreen} />
+          <Stack.Screen name="GoDeeper" component={GoDeepScreen} />
         </>
       ) : (
         <>
