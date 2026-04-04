@@ -12,7 +12,6 @@ import {
   ScrollView,
 } from "react-native";
 import api from "../service/api";
-import ReflectionPrompt from "../components/ReflectionPrompt";
 
 const WARM = {
   bg: "#FDF6EC",
@@ -46,12 +45,14 @@ function getFormattedDate() {
 export default function JournalScreen({ navigation }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showInlineReflection, setShowInlineReflection] = useState(false);
+  const [askLoading, setAskLoading] = useState(false);
 
   const charsLeft = MAX_CHARS - text.length;
   const isNearLimit = charsLeft < 200;
   const isEmpty = !text.trim();
+  const showAskMe = text.trim().length > 20 && !loading && !askLoading;
 
+  // Saves entry and navigates to EmotionFeedback
   const handleSave = async () => {
     if (isEmpty) {
       Alert.alert("Empty Entry", "Write something before saving.");
@@ -71,7 +72,6 @@ export default function JournalScreen({ navigation }) {
       } = response.data;
 
       setText("");
-      setShowInlineReflection(false);
 
       navigation.navigate("EmotionFeedback", {
         contextual_message,
@@ -84,6 +84,34 @@ export default function JournalScreen({ navigation }) {
       Alert.alert("Error", "Failed to save entry. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Saves entry then navigates to GoDeeper
+  const handleAskMe = async () => {
+    if (isEmpty) {
+      Alert.alert("Empty Entry", "Write something first.");
+      return;
+    }
+    setAskLoading(true);
+    try {
+      const response = await api.post("/api/journal/create/", {
+        text: text.trim(),
+      });
+
+      const { dominant_emotion, journal_id } = response.data;
+
+      setText("");
+
+      navigation.navigate("GoDeeper", {
+        journal_text: text.trim(),
+        dominant_emotion,
+        journal_id,
+      });
+    } catch (error) {
+      Alert.alert("Error", "Failed to save entry. Please try again.");
+    } finally {
+      setAskLoading(false);
     }
   };
 
@@ -111,7 +139,6 @@ export default function JournalScreen({ navigation }) {
               <View key={i} style={styles.ruledLine} />
             ))}
           </View>
-
           <TextInput
             style={styles.textInput}
             placeholder="What's on your mind today?"
@@ -125,38 +152,15 @@ export default function JournalScreen({ navigation }) {
           />
         </View>
 
-        {/* Secondary reflection entry */}
-        {!showInlineReflection && text.trim().length > 20 && (
-          <TouchableOpacity
-            onPress={() => setShowInlineReflection(true)}
-            style={styles.askMeLink}
-          >
-            <Text style={styles.askMeLinkText}>Ask me something instead</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* Inline reflection */}
-        {showInlineReflection && (
-          <ReflectionPrompt
-            journalText={text.trim()}
-            dominantEmotion="neutral"
-            journalId={null}
-            onSave={() => {}}
-            onDismiss={() => setShowInlineReflection(false)}
-          />
-        )}
-
         {/* Character counter */}
-        <Text
-          style={[styles.charCount, isNearLimit && styles.charCountWarning]}
-        >
+        <Text style={[styles.charCount, isNearLimit && styles.charCountWarning]}>
           {charsLeft} characters remaining
         </Text>
 
         {/* Save button */}
         <TouchableOpacity
-          style={[styles.button, isEmpty && styles.buttonDisabled]}
-          disabled={loading || isEmpty}
+          style={[styles.button, (isEmpty || loading || askLoading) && styles.buttonDisabled]}
+          disabled={loading || askLoading || isEmpty}
           onPress={handleSave}
           activeOpacity={0.85}
         >
@@ -169,6 +173,21 @@ export default function JournalScreen({ navigation }) {
             </>
           )}
         </TouchableOpacity>
+
+        {/* Ask me something instead */}
+        {showAskMe && (
+          <TouchableOpacity
+            onPress={handleAskMe}
+            style={styles.askMeLink}
+            disabled={askLoading}
+          >
+            {askLoading ? (
+              <ActivityIndicator size="small" color={WARM.accent} />
+            ) : (
+              <Text style={styles.askMeLinkText}>Ask me something instead →</Text>
+            )}
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -245,22 +264,11 @@ const styles = StyleSheet.create({
     zIndex: 1,
     fontWeight: "400",
   },
-  askMeLink: {
-    alignSelf: "flex-end",
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginBottom: 4,
-  },
-  askMeLinkText: {
-    fontSize: 12,
-    color: WARM.textMuted,
-    fontStyle: "italic",
-  },
   charCount: {
     fontSize: 12,
     color: WARM.textMuted,
     textAlign: "right",
-    marginBottom: 24,
+    marginBottom: 16,
   },
   charCountWarning: {
     color: WARM.accent,
@@ -276,9 +284,10 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 4,
+    marginBottom: 16,
   },
   buttonDisabled: {
-    opacity: 0.4,
+    opacity: 0.5,
   },
   buttonText: {
     color: "#fff",
@@ -291,5 +300,15 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
     letterSpacing: 0.5,
+  },
+  askMeLink: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  askMeLinkText: {
+    fontSize: 13,
+    color: WARM.accent,
+    fontStyle: "italic",
+    fontWeight: "500",
   },
 });
