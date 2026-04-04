@@ -4,26 +4,28 @@
     "slug": "serein",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/app_logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/app_logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "ios": {
-      "supportsTablet": true
+      "backgroundColor": "#FDF6EC"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/app_logo.png",
+        "backgroundColor": "#FDF6EC"
       },
+      "package": "com.kartikmeena.Serein",
       "edgeToEdgeEnabled": true
     },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.kartikmeena.Serein"
+    },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/app_logo.png"
     }
   }
 }
