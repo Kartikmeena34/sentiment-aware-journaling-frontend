@@ -26,6 +26,12 @@
     },
     "web": {
       "favicon": "./assets/app_logo.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "cc688607-8565-45bb-b7dd-c198ab5aa221"
+      }
+    },
+    "owner": "kartikmeena34"
   }
 }
