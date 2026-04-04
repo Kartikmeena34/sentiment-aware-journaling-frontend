@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   FlatList,
@@ -31,9 +30,7 @@ const makeId = () => `msg_${++messageIdCounter}_${Date.now()}`;
 export default function GoDeepScreen({ route, navigation }) {
   const { journal_text, dominant_emotion, journal_id } = route.params;
 
-  // messages: array of { id, role: "context"|"ai"|"user"|"typing", text }
   const [messages, setMessages] = useState([]);
-  // groqHistory: array of { role: "user"|"assistant", content } — sent to backend each turn
   const [groqHistory, setGroqHistory] = useState([]);
   const [input, setInput] = useState("");
   const [aiTyping, setAiTyping] = useState(false);
@@ -58,9 +55,7 @@ export default function GoDeepScreen({ route, navigation }) {
   };
 
   const startChat = async () => {
-    // Show journal as context card at top
     appendMessage("context", journal_text);
-
     setAiTyping(true);
 
     try {
@@ -69,18 +64,13 @@ export default function GoDeepScreen({ route, navigation }) {
         dominant_emotion,
         conversation_history: [],
       });
-
       const reply = response.data.reply;
       appendMessage("ai", reply);
-
-      // Add opening AI message to groq history
       setGroqHistory([{ role: "assistant", content: reply }]);
     } catch (e) {
-      appendMessage("ai", "What felt most significant about what you wrote?");
-      setGroqHistory([{
-        role: "assistant",
-        content: "What felt most significant about what you wrote?",
-      }]);
+      const fallback = "What felt most significant about what you wrote?";
+      appendMessage("ai", fallback);
+      setGroqHistory([{ role: "assistant", content: fallback }]);
     }
 
     setAiTyping(false);
@@ -92,16 +82,12 @@ export default function GoDeepScreen({ route, navigation }) {
 
     const userText = input.trim();
     setInput("");
-
-    // Add user message to UI
     appendMessage("user", userText);
 
-    // Build updated groq history with user message appended
     const updatedHistory = [
       ...groqHistory,
       { role: "user", content: userText },
     ];
-
     setGroqHistory(updatedHistory);
     setAiTyping(true);
 
@@ -111,11 +97,8 @@ export default function GoDeepScreen({ route, navigation }) {
         dominant_emotion,
         conversation_history: updatedHistory,
       });
-
       const reply = response.data.reply;
       appendMessage("ai", reply);
-
-      // Append AI reply to history
       setGroqHistory([...updatedHistory, { role: "assistant", content: reply }]);
     } catch (e) {
       appendMessage("ai", "Tell me more about that.");
@@ -129,7 +112,6 @@ export default function GoDeepScreen({ route, navigation }) {
   };
 
   const handleDone = async () => {
-    // Save full conversation to backend before leaving
     if (journal_id && groqHistory.length > 0) {
       try {
         await api.post("/api/journal/reflect/save/", {
@@ -152,7 +134,6 @@ export default function GoDeepScreen({ route, navigation }) {
         </View>
       );
     }
-
     if (item.role === "ai") {
       return (
         <View style={styles.aiRow}>
@@ -165,7 +146,6 @@ export default function GoDeepScreen({ route, navigation }) {
         </View>
       );
     }
-
     if (item.role === "user") {
       return (
         <View style={styles.userRow}>
@@ -175,55 +155,56 @@ export default function GoDeepScreen({ route, navigation }) {
         </View>
       );
     }
-
     return null;
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.backButton}
-        >
-          <Ionicons name="chevron-back" size={22} color={WARM.textSecondary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Go Deeper</Text>
-        <TouchableOpacity onPress={handleDone} style={styles.doneHeaderButton}>
-          <Text style={styles.doneHeaderText}>Done</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Messages */}
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={renderMessage}
-        contentContainerStyle={styles.messageList}
-        onContentSizeChange={scrollToBottom}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      />
-
-      {/* Typing indicator */}
-      {aiTyping && (
-        <View style={styles.typingRow}>
-          <View style={styles.aiAvatar}>
-            <Text style={styles.aiAvatarText}>M</Text>
-          </View>
-          <View style={styles.typingBubble}>
-            <TypingDots />
-          </View>
-        </View>
-      )}
-
-      {/* Input bar */}
+    <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 24}
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "padding"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="chevron-back" size={22} color={WARM.textSecondary} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Go Deeper</Text>
+          <TouchableOpacity onPress={handleDone} style={styles.doneHeaderButton}>
+            <Text style={styles.doneHeaderText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Messages — flex: 1 makes this compress when keyboard opens */}
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={renderMessage}
+          contentContainerStyle={styles.messageList}
+          onContentSizeChange={scrollToBottom}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          style={styles.flatList}
+        />
+
+        {/* Typing indicator */}
+        {aiTyping && (
+          <View style={styles.typingRow}>
+            <View style={styles.aiAvatar}>
+              <Text style={styles.aiAvatarText}>M</Text>
+            </View>
+            <View style={styles.typingBubble}>
+              <TypingDots />
+            </View>
+          </View>
+        )}
+
+        {/* Input bar — always visible above keyboard */}
         <View style={styles.inputBar}>
           <TextInput
             ref={inputRef}
@@ -235,7 +216,6 @@ export default function GoDeepScreen({ route, navigation }) {
             multiline
             maxLength={500}
             editable={!aiTyping && !done}
-            onSubmitEditing={handleSend}
             blurOnSubmit={false}
           />
           <TouchableOpacity
@@ -254,21 +234,11 @@ export default function GoDeepScreen({ route, navigation }) {
   );
 }
 
-function TypingDots() {
-  const [frame, setFrame] = useState(0);
-  const frames = ["●○○", "○●○", "○○●"];
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setFrame((prev) => (prev + 1) % frames.length);
-    }, 400);
-    return () => clearInterval(interval);
-  }, []);
-
-  return <Text style={styles.typingText}>{frames[frame]}</Text>;
-}
-
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: WARM.surface,
+  },
   container: {
     flex: 1,
     backgroundColor: WARM.bg,
@@ -308,6 +278,9 @@ const styles = StyleSheet.create({
     color: WARM.accent,
     fontWeight: "600",
   },
+  flatList: {
+    flex: 1,
+  },
   messageList: {
     padding: 16,
     paddingBottom: 12,
@@ -338,6 +311,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     gap: 8,
+    marginBottom: 4,
   },
   aiAvatar: {
     width: 28,
@@ -375,6 +349,7 @@ const styles = StyleSheet.create({
   userRow: {
     flexDirection: "row",
     justifyContent: "flex-end",
+    marginBottom: 4,
   },
   userBubble: {
     backgroundColor: WARM.accent,
@@ -455,3 +430,17 @@ const styles = StyleSheet.create({
     elevation: 0,
   },
 });
+
+function TypingDots() {
+  const [frame, setFrame] = useState(0);
+  const frames = ["●○○", "○●○", "○○●"];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setFrame((prev) => (prev + 1) % frames.length);
+    }, 400);
+    return () => clearInterval(interval);
+  }, []);
+
+  return <Text style={styles.typingText}>{frames[frame]}</Text>;
+}
