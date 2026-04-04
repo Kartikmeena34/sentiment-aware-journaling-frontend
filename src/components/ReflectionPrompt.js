@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import api from "../service/api";
 
 const WARM = {
   bg: "#FDF6EC",
@@ -61,69 +62,32 @@ export default function ReflectionPrompt({
 
   const generateQuestion = async () => {
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: `You are a warm, empathetic journaling companion. Generate exactly ONE short, warm follow-up question based on the user's journal entry. The question should:
-- Acknowledge what they actually wrote about specifically
-- Invite them to reflect one layer deeper
-- Feel like it came from a caring friend, not a therapist
-- Be under 20 words
-- NOT mention the emotion label directly
-- NOT start with "I"
-Return only the question, nothing else.`,
-          messages: [
-            {
-              role: "user",
-              content: `Journal entry: "${journalText}"\nDetected emotion: ${dominantEmotion}`,
-            },
-          ],
-        }),
+      const response = await api.post("/api/journal/reflect/question/", {
+        journal_text: journalText,
+        dominant_emotion: dominantEmotion,
       });
-
-      const data = await response.json();
-      const generatedQuestion = data.content[0].text.trim();
-      setQuestion(generatedQuestion);
+      setQuestion(response.data.question);
       setPhase("question");
     } catch (error) {
       console.log("Failed to generate question:", error);
-      onDismiss();
+      // Use fallback instead of dismissing — don't punish user for network issues
+      setQuestion("What felt most significant about what you wrote?");
+      setPhase("question");
     }
   };
 
   const generateFollowUp = async () => {
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: `You are a warm, empathetic journaling companion. The user answered a reflection question. Generate ONE short warm closing response that:
-- Acknowledges what they said warmly and specifically
-- Does NOT ask another question
-- Feels like a gentle, human close
-- Is under 20 words
-Return only the response, nothing else.`,
-          messages: [
-            {
-              role: "user",
-              content: `Original journal: "${journalText}"\nReflection question: "${question}"\nUser answer: "${answer}"`,
-            },
-          ],
-        }),
+      const response = await api.post("/api/journal/reflect/closing/", {
+        journal_text: journalText,
+        question,
+        answer,
       });
-
-      const data = await response.json();
-      const closing = data.content[0].text.trim();
-      setFollowUp(closing);
-      setPhase("done");
+      setFollowUp(response.data.closing);
     } catch (error) {
-      setPhase("done");
+      setFollowUp("Thank you for going deeper. That took courage.");
     }
+    setPhase("done");
   };
 
   const handleSubmit = async () => {
